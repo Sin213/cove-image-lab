@@ -144,6 +144,16 @@ FORENSICS_SECTIONS: list[tuple[str, list[str]]] = [
             "Zoom controls are unavailable in Metadata view and when no image is loaded.",
         ],
     ),
+    (
+        "Layout (ELA / Noise Map)",
+        [
+            "Single — shows the forensic view on its own.",
+            "Side-by-side — shows the source image on the left labeled Original and the forensic view on the right labeled Forensic.",
+            "In Side-by-side, mouse-wheel zoom and drag-pan stay in sync between the two panes.",
+            "The layout choice does not change ELA or Noise Map calculations.",
+            "The Layout toggle is hidden in Metadata view because the metadata table is not an image.",
+        ],
+    ),
 ]
 
 

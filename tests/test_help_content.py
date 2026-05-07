@@ -76,6 +76,15 @@ def test_forensics_help_documents_zoom_controls():
     assert "percentage readout" in text
 
 
+def test_forensics_help_documents_layout_options():
+    text = _flatten(FORENSICS_SECTIONS)
+    assert "single" in text
+    assert "side-by-side" in text
+    assert "labeled original" in text
+    assert "labeled forensic" in text
+    assert "stay in sync" in text
+
+
 def test_forensics_help_explains_ela_and_noise_sliders():
     text = _flatten(FORENSICS_SECTIONS)
     # ELA controls

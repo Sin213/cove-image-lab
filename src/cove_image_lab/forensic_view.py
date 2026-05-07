@@ -35,7 +35,7 @@ from . import theme
 from .diff_exporter import DiffExportError, export_png
 from .forensic_engine import ForensicError, error_level_analysis, noise_map
 from .help_dialog import open_forensics_help
-from .image_view import LabeledView, ndarray_to_qimage
+from .image_view import LabeledView, SyncedImageView, ndarray_to_qimage
 from .metadata_reader import Metadata, MetadataReadError, read_metadata
 
 
@@ -181,6 +181,9 @@ class ForensicsPanel(QWidget):
     MODE_NOISE = "noise"
     MODE_METADATA = "metadata"
 
+    LAYOUT_SINGLE = "single"
+    LAYOUT_SIDE_BY_SIDE = "side_by_side"
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
@@ -191,6 +194,7 @@ class ForensicsPanel(QWidget):
         self._last_view: np.ndarray | None = None
         self._source = "a"
         self._mode = self.MODE_ELA
+        self._layout = self.LAYOUT_SINGLE
         self._last_save_dir = ""
 
         # --- source + mode header -------------------------------------------
@@ -226,10 +230,19 @@ class ForensicsPanel(QWidget):
         self.mode_toggle.set_current(self.MODE_ELA)
         self.mode_toggle.selected.connect(self._on_mode_changed)
 
+        self.layout_toggle = _ToggleRow([
+            (self.LAYOUT_SINGLE, "Single"),
+            (self.LAYOUT_SIDE_BY_SIDE, "Side-by-side"),
+        ])
+        self.layout_toggle.set_current(self.LAYOUT_SINGLE)
+        self.layout_toggle.selected.connect(self._on_layout_changed)
+
         source_label = QLabel("Source")
         source_label.setProperty("role", "muted")
         mode_label = QLabel("View")
         mode_label.setProperty("role", "muted")
+        self.layout_label = QLabel("Layout")
+        self.layout_label.setProperty("role", "muted")
 
         header_grid = QGridLayout()
         header_grid.setContentsMargins(0, 0, 0, 0)
@@ -239,6 +252,8 @@ class ForensicsPanel(QWidget):
         header_grid.addWidget(self.source_toggle, 1, 0)
         header_grid.addWidget(mode_label, 0, 1)
         header_grid.addWidget(self.mode_toggle, 1, 1)
+        header_grid.addWidget(self.layout_label, 2, 0)
+        header_grid.addWidget(self.layout_toggle, 3, 0, 1, 2)
         header_grid.setColumnStretch(0, 0)
         header_grid.setColumnStretch(1, 1)
 
@@ -316,9 +331,15 @@ class ForensicsPanel(QWidget):
         md_lay.addWidget(md_hint)
         md_lay.addWidget(self.metadata_table, 1)
 
+        self.side_by_side = SyncedImageView(
+            left_label="Original",
+            right_label="Forensic",
+        )
+
         self.view_stack = QStackedWidget()
-        self.view_stack.addWidget(self.image_view)         # index 0
-        self.view_stack.addWidget(self.metadata_card)      # index 1
+        self.view_stack.addWidget(self.image_view)         # single forensic view
+        self.view_stack.addWidget(self.metadata_card)      # metadata table
+        self.view_stack.addWidget(self.side_by_side)       # original | forensic
 
         # --- export + status ------------------------------------------------
         self.export_btn = QPushButton("Export forensic view as PNG…")
@@ -400,10 +421,24 @@ class ForensicsPanel(QWidget):
         self._update_mode_visibility()
         self._refresh()
 
+    def _on_layout_changed(self, key: str) -> None:
+        self._layout = key
+        self._update_mode_visibility()
+        self._refresh()
+
     def _update_mode_visibility(self) -> None:
         self.ela_card.setVisible(self._mode == self.MODE_ELA)
         self.noise_card.setVisible(self._mode == self.MODE_NOISE)
-        self.view_stack.setCurrentIndex(1 if self._mode == self.MODE_METADATA else 0)
+        is_metadata = self._mode == self.MODE_METADATA
+        # Layout toggle is meaningless for the metadata table.
+        self.layout_label.setVisible(not is_metadata)
+        self.layout_toggle.setVisible(not is_metadata)
+        if is_metadata:
+            self.view_stack.setCurrentWidget(self.metadata_card)
+        elif self._layout == self.LAYOUT_SIDE_BY_SIDE:
+            self.view_stack.setCurrentWidget(self.side_by_side)
+        else:
+            self.view_stack.setCurrentWidget(self.image_view)
 
     def _refresh(self) -> None:
         if self._mode == self.MODE_METADATA:
@@ -417,6 +452,7 @@ class ForensicsPanel(QWidget):
             self._last_view = None
             self.image_view.set_pixmap(None)
             self.image_view.set_toolbar_enabled(False)
+            self.side_by_side.set_images(None, None)
             self.export_btn.setEnabled(False)
             self.status.setText(
                 f"Load Image {'A' if self._source == 'a' else 'B'} on the Compare tab to begin."
@@ -449,12 +485,16 @@ class ForensicsPanel(QWidget):
             self._last_view = None
             self.image_view.set_pixmap(None)
             self.image_view.set_toolbar_enabled(False)
+            self.side_by_side.set_images(None, None)
             self.export_btn.setEnabled(False)
             self.status.setText(f"Could not analyze image: {e}")
             return
         self._last_view = view
-        self.image_view.set_pixmap(_ndarray_to_pixmap(view))
+        forensic_pix = _ndarray_to_pixmap(view)
+        original_pix = _ndarray_to_pixmap(arr)
+        self.image_view.set_pixmap(forensic_pix)
         self.image_view.set_toolbar_enabled(True)
+        self.side_by_side.set_images(original_pix, forensic_pix)
         self.export_btn.setEnabled(True)
         self.status.setText(label + " — indicator only")
 
