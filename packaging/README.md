@@ -131,4 +131,5 @@ The bundle was verified to:
 - launch on a real X display, reaching the Qt event loop
 - ship the icon resource at the path
   `cove_image_lab/assets/cove_icon.png`
-- expose the three expected tabs: Compare, Forensics, Redaction
+- expose the four expected tabs: Compare, Forensics, Redaction, AI
+  Indicator

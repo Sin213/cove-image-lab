@@ -1,7 +1,7 @@
 # cove-image-lab
 
 **Cove Image Lab** — offline desktop two-image comparison and inspection.
-Three tabs:
+Four tabs:
 
 - **Compare** — synced side-by-side view, threshold-tunable strict pixel
   diff, draggable wipe, fullscreen wipe, diff PNG export.
@@ -13,6 +13,11 @@ Three tabs:
 - **Redaction** — draw opaque black rectangles over private regions on
   Image A or Image B, then export a redacted PNG. Manual only; nothing is
   auto-detected; original files on disk are never modified.
+- **AI Indicator** — surface possible metadata and provenance signals
+  (software/editor tags, camera fields, XMP, PNG text chunks, C2PA /
+  JUMBF byte markers) for the chosen source. Each row is a review aid,
+  not a conclusion: there is no score, percentage, verdict, or
+  authenticity determination.
 
 Zero network calls, no AI APIs, no telemetry, no accounts. Everything is
 local.
@@ -163,12 +168,43 @@ share it. It is **manual only** — nothing is auto-detected.
 - Redaction rectangles are not saved between app runs; nothing is
   auto-saved.
 
+## AI Indicator tab
+
+The AI Indicator tab surfaces possible metadata- and provenance-style
+signals from a single loaded source (Image A or Image B) and pairs each
+row with a plain-language explanation of why it may or may not matter.
+The tab is a **review aid**, not a detector.
+
+- Indicators do not provide a score, percentage, verdict, or
+  authenticity determination, and do not produce a conclusion.
+- Each row carries a coarse category chip — `weak context`, `possible
+  signal`, or `worth a look` — never a numeric score.
+- Categories surfaced: software / editor tag (EXIF), camera make/model
+  presence or absence, capture date/time, XMP packet presence, PNG text
+  chunks, content credential byte markers (C2PA / JUMBF) when present in
+  the file head, and format/size context for metadata-free files.
+- Pick **Image A** or **Image B** with the Source toggle; switching
+  sources updates the indicator list. Each source keeps its own state
+  for the session.
+- Local-only: no ML model, no network calls, no cloud APIs, no OCR, no
+  model downloads, no telemetry. The C2PA / JUMBF check is a small
+  in-repo byte sniffer over the file head; no third-party SDK is used.
+- Original images are never modified; nothing is auto-saved.
+- Indicator results are session-only and **are not included** in the
+  Review Report export.
+
+Indicators may warrant human review on their own; absence of indicators
+is not evidence either way. Metadata can be missing, stripped, edited,
+or copied between files, so treat each row as one input among many.
+
 ## Privacy / offline
 
 - The app makes no network calls. Loading and exporting are filesystem-only.
 - No analytics, telemetry, crash reporting, or cloud upload.
-- No AI, OCR, or remote inference. Forensics views and Redaction are
-  fully local computations.
+- No AI, OCR, or remote inference. Forensics views, Redaction, and the
+  AI Indicator tab are fully local computations; the AI Indicator tab
+  uses metadata and a bounded byte-marker sniff only — no model, no
+  network call, no cloud API.
 - Every export writes a new file at the path you choose in the save
   dialog; nothing is auto-saved. Only the **Redaction** export actively
   guards against overwriting a loaded source file (including hard-link
@@ -208,12 +244,16 @@ src/cove_image_lab/
   forensic_view.py       # Forensics tab UI: views, layout, notes, exports
   metadata_reader.py     # PURE: image file -> structured metadata dict
   redaction_view.py      # Redaction tab UI + redacted-PNG render/export
+  ai_indicator_engine.py # PURE: Metadata -> list[Indicator] (no ML, no net)
+  ai_indicator_view.py   # AI Indicator tab UI: source toggle, cards, limits
   help_dialog.py         # In-app "How to use" dialogs (data + widget)
   theme.py               # Cove colors, spacing, QSS
   assets/
     cove_icon.png        # Window/app icon (shipped as package data)
 
 tests/
+  test_ai_indicator_engine.py
+  test_ai_indicator_view.py
   test_compare_engine.py
   test_diff_exporter.py
   test_forensic_engine.py
