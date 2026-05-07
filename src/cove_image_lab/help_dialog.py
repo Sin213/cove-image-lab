@@ -186,6 +186,45 @@ FORENSICS_SECTIONS: list[tuple[str, list[str]]] = [
 ]
 
 
+REDACTION_SECTIONS: list[tuple[str, list[str]]] = [
+    (
+        "What the Redaction tab is for",
+        [
+            "Use Redaction to manually cover private areas (faces, IDs, names, badge numbers) before sharing an image.",
+            "Click and drag on the preview to draw an opaque black rectangle.",
+            "Redaction is local and manual only — nothing is auto-detected.",
+        ],
+    ),
+    (
+        "Source",
+        [
+            "Pick Image A or Image B with the Source toggle. Each source keeps its own redaction rectangles for the session.",
+            "Switching source does not lose your in-progress rectangles for the other source.",
+            "Clearing an image on the Compare tab also clears that source's redaction rectangles.",
+        ],
+    ),
+    (
+        "Drawing controls",
+        [
+            "Undo Redaction removes only the most recent rectangle.",
+            "Clear Redactions removes every rectangle on the current source.",
+            "Both buttons are disabled until you have drawn at least one rectangle.",
+        ],
+    ),
+    (
+        "Exporting a redacted PNG",
+        [
+            "Use the Export Redacted PNG button to save a new PNG copy with the rectangles burned in as solid black pixels.",
+            "Default filenames are cove_redacted_a.png for Image A and cove_redacted_b.png for Image B; rename in the save dialog as needed.",
+            "Original image files on disk are never modified.",
+            "Redaction is destructive in the exported copy — covered pixels become solid opaque black, not blurred. Blur is not a reliable redaction.",
+            "Image metadata is not written into the exported PNG.",
+            "Rectangles are not saved between app runs; nothing is auto-saved.",
+        ],
+    ),
+]
+
+
 # ---------------------------------------------------------------------------
 # Widget
 # ---------------------------------------------------------------------------
@@ -269,3 +308,8 @@ def open_compare_help(parent: QWidget | None = None) -> None:
 def open_forensics_help(parent: QWidget | None = None) -> None:
     """Open the modal Forensics help dialog."""
     HelpDialog("Forensics — How to use", FORENSICS_SECTIONS, parent=parent).exec()
+
+
+def open_redaction_help(parent: QWidget | None = None) -> None:
+    """Open the modal Redaction help dialog."""
+    HelpDialog("Redaction — How to use", REDACTION_SECTIONS, parent=parent).exec()

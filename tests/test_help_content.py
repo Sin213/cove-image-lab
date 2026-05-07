@@ -9,7 +9,11 @@ from __future__ import annotations
 
 import re
 
-from cove_image_lab.help_dialog import COMPARE_SECTIONS, FORENSICS_SECTIONS
+from cove_image_lab.help_dialog import (
+    COMPARE_SECTIONS,
+    FORENSICS_SECTIONS,
+    REDACTION_SECTIONS,
+)
 
 
 def _flatten(sections):
@@ -156,6 +160,23 @@ def test_forensics_help_has_no_banned_wording():
     _assert_no_banned(FORENSICS_SECTIONS, "FORENSICS_SECTIONS")
 
 
+def test_redaction_help_has_no_banned_wording():
+    _assert_no_banned(REDACTION_SECTIONS, "REDACTION_SECTIONS")
+
+
+def test_redaction_help_documents_manual_redaction_workflow():
+    text = _flatten(REDACTION_SECTIONS)
+    assert "redaction" in text
+    assert "manual" in text
+    assert "opaque" in text and "black" in text
+    assert "original image files on disk are never modified" in text
+    assert "auto-detected" in text or "not auto-saved" in text
+    assert "cove_redacted_a.png" in text
+    assert "cove_redacted_b.png" in text
+    # Defensive: blur is explicitly NOT the chosen mechanism.
+    assert "blur is not a reliable redaction" in text
+
+
 def test_proof_appears_only_in_negation_contexts():
     """The word "proof" / "prove" is allowed only inside a negation phrase."""
     pattern = re.compile(r"\b(proof|prov\w*)\b", re.IGNORECASE)
@@ -167,6 +188,7 @@ def test_proof_appears_only_in_negation_contexts():
     for label, sections in (
         ("COMPARE_SECTIONS", COMPARE_SECTIONS),
         ("FORENSICS_SECTIONS", FORENSICS_SECTIONS),
+        ("REDACTION_SECTIONS", REDACTION_SECTIONS),
     ):
         for _, bullets in sections:
             for line in bullets:
