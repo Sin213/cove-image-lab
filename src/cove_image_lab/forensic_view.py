@@ -297,7 +297,7 @@ class ForensicsPanel(QWidget):
         self.noise_card = noise_card
 
         # --- view stack: forensic image vs metadata table -------------------
-        self.image_view = LabeledView("Forensic view")
+        self.image_view = LabeledView("Forensic view", with_zoom_toolbar=True)
         self.metadata_card = QFrame()
         self.metadata_card.setObjectName("card")
         md_lay = QVBoxLayout(self.metadata_card)
@@ -416,6 +416,7 @@ class ForensicsPanel(QWidget):
         if arr is None:
             self._last_view = None
             self.image_view.set_pixmap(None)
+            self.image_view.set_toolbar_enabled(False)
             self.export_btn.setEnabled(False)
             self.status.setText(
                 f"Load Image {'A' if self._source == 'a' else 'B'} on the Compare tab to begin."
@@ -447,11 +448,13 @@ class ForensicsPanel(QWidget):
         except ForensicError as e:
             self._last_view = None
             self.image_view.set_pixmap(None)
+            self.image_view.set_toolbar_enabled(False)
             self.export_btn.setEnabled(False)
             self.status.setText(f"Could not analyze image: {e}")
             return
         self._last_view = view
         self.image_view.set_pixmap(_ndarray_to_pixmap(view))
+        self.image_view.set_toolbar_enabled(True)
         self.export_btn.setEnabled(True)
         self.status.setText(label + " — indicator only")
 

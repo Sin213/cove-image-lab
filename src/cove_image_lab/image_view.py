@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QGraphicsView,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -36,6 +37,7 @@ class _PanZoomView(QGraphicsView):
 
     zoomChanged = Signal(float, QPointF)        # factor, scene-space focal point
     scrollChanged = Signal(int, int)            # h_value, v_value
+    transformChanged = Signal()                 # any zoom/fit transform update
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -62,18 +64,36 @@ class _PanZoomView(QGraphicsView):
         self._item = None
         if pix is None or pix.isNull():
             scene.setSceneRect(QRectF())
+            self.resetTransform()
+            self._zoom = 1.0
+            self.transformChanged.emit()
             return
         self._item = scene.addPixmap(pix)
         scene.setSceneRect(QRectF(pix.rect()))
         self.resetTransform()
         self._zoom = 1.0
         self.fitInView(self._item, Qt.KeepAspectRatio)
+        self.transformChanged.emit()
 
     def fit(self) -> None:
         if self._item is not None:
             self.resetTransform()
             self._zoom = 1.0
             self.fitInView(self._item, Qt.KeepAspectRatio)
+            self.transformChanged.emit()
+
+    def actual_size(self) -> None:
+        """Reset to native pixel size (zoom = 1.0) and clear pan."""
+        if self._item is not None:
+            self.resetTransform()
+            self._zoom = 1.0
+            self.transformChanged.emit()
+
+    def current_zoom_percent(self) -> int:
+        """Effective on-screen scale, in percent. 100 = native pixel size."""
+        if self._item is None:
+            return 0
+        return int(round(self.transform().m11() * 100))
 
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802 - Qt name
         if self._item is None:
@@ -87,6 +107,7 @@ class _PanZoomView(QGraphicsView):
         self._zoom *= factor
         if not self._suppress_emit:
             self.zoomChanged.emit(factor, focal_scene)
+        self.transformChanged.emit()
         event.accept()
 
     def apply_zoom(self, factor: float, focal_scene: QPointF) -> None:
@@ -102,6 +123,7 @@ class _PanZoomView(QGraphicsView):
             self.translate(delta.x(), delta.y())
         finally:
             self._suppress_emit = False
+        self.transformChanged.emit()
 
     def _on_scroll(self, _value: int) -> None:
         if self._suppress_emit:
@@ -121,9 +143,20 @@ class _PanZoomView(QGraphicsView):
 
 
 class LabeledView(QFrame):
-    """A QGraphicsView wrapped in a Cove-style card with a title strip."""
+    """A QGraphicsView wrapped in a Cove-style card with a title strip.
 
-    def __init__(self, title: str, parent: QWidget | None = None) -> None:
+    When ``with_zoom_toolbar`` is True, a compact Fit / 100% / zoom-percent
+    strip sits to the right of the title. Defaults to False so existing
+    callers are unchanged.
+    """
+
+    def __init__(
+        self,
+        title: str,
+        parent: QWidget | None = None,
+        *,
+        with_zoom_toolbar: bool = False,
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("card")
         self.setFrameShape(QFrame.NoFrame)
@@ -134,14 +167,69 @@ class LabeledView(QFrame):
 
         self.view = _PanZoomView(self)
 
+        self.fit_btn: QPushButton | None = None
+        self.actual_btn: QPushButton | None = None
+        self.zoom_label: QLabel | None = None
+
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(8)
+        title_row.addWidget(self.title_label)
+        title_row.addStretch(1)
+
+        if with_zoom_toolbar:
+            self.zoom_label = QLabel("—")
+            self.zoom_label.setProperty("role", "muted")
+            self.zoom_label.setMinimumWidth(48)
+            self.zoom_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+            self.fit_btn = QPushButton("Fit")
+            self.fit_btn.setProperty("role", "header")
+            self.fit_btn.setCursor(Qt.PointingHandCursor)
+            self.fit_btn.setToolTip("Fit image to view")
+            self.fit_btn.clicked.connect(self.view.fit)
+
+            self.actual_btn = QPushButton("100%")
+            self.actual_btn.setProperty("role", "header")
+            self.actual_btn.setCursor(Qt.PointingHandCursor)
+            self.actual_btn.setToolTip("Show at native pixel size")
+            self.actual_btn.clicked.connect(self.view.actual_size)
+
+            title_row.addWidget(self.zoom_label)
+            title_row.addWidget(self.fit_btn)
+            title_row.addWidget(self.actual_btn)
+
+            self.view.transformChanged.connect(self._update_zoom_readout)
+            self.set_toolbar_enabled(False)
+
         lay = QVBoxLayout(self)
         lay.setContentsMargins(10, 8, 10, 10)
         lay.setSpacing(6)
-        lay.addWidget(self.title_label)
+        lay.addLayout(title_row)
         lay.addWidget(self.view, 1)
 
     def set_pixmap(self, pix: QPixmap | None) -> None:
         self.view.set_pixmap(pix)
+
+    def set_toolbar_enabled(self, enabled: bool) -> None:
+        """Enable or disable the optional zoom toolbar (no-op if absent)."""
+        if self.fit_btn is None:
+            return
+        self.fit_btn.setEnabled(enabled)
+        self.actual_btn.setEnabled(enabled)
+        self.zoom_label.setEnabled(enabled)
+        if not enabled:
+            self.zoom_label.setText("—")
+        else:
+            self._update_zoom_readout()
+
+    def _update_zoom_readout(self) -> None:
+        if self.zoom_label is None:
+            return
+        if not self.zoom_label.isEnabled():
+            return
+        pct = self.view.current_zoom_percent()
+        self.zoom_label.setText(f"{pct}%" if pct > 0 else "—")
 
 
 class SyncedImageView(QWidget):

@@ -68,6 +68,14 @@ def test_forensics_help_explains_metadata_caveats_and_local_only_gps():
     assert "no online lookups" in text
 
 
+def test_forensics_help_documents_zoom_controls():
+    text = _flatten(FORENSICS_SECTIONS)
+    assert "fit" in text
+    assert "100%" in text
+    assert "native pixel size" in text
+    assert "percentage readout" in text
+
+
 def test_forensics_help_explains_ela_and_noise_sliders():
     text = _flatten(FORENSICS_SECTIONS)
     # ELA controls
