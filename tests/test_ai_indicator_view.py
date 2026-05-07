@@ -142,6 +142,37 @@ def test_plain_png_shows_no_metadata_row(
     assert "deepfake" not in text.lower()
 
 
+def test_plain_png_renders_stripped_or_reencoded_card(
+    view: AIIndicatorView, tmp_path: Path
+) -> None:
+    p = _save_plain_png(tmp_path / "plain.png")
+    view.set_image("a", _rgba(1), p)
+    text = _all_label_text(view)
+    assert "Possible stripped or re-encoded copy" in text
+    assert "Original-source files may be more useful for review" in text
+    assert "not an authenticity determination" in text
+    # No specific-platform claim, no verdict.
+    low = text.lower()
+    for platform in (
+        "whatsapp",
+        "discord",
+        "telegram",
+        "instagram",
+        "facebook",
+        "twitter",
+    ):
+        assert platform not in low, f"specific platform leaked: {platform!r}"
+
+
+def test_camera_jpeg_does_not_render_stripped_card(
+    view: AIIndicatorView, tmp_path: Path
+) -> None:
+    p = _save_jpeg_with_software(tmp_path / "a.jpg", "ToolUnderTest 9")
+    view.set_image("a", _rgba(1), p)
+    text = _all_label_text(view)
+    assert "Possible stripped or re-encoded copy" not in text
+
+
 def test_corrupt_file_does_not_crash(view: AIIndicatorView, tmp_path: Path) -> None:
     p = tmp_path / "broken.png"
     p.write_bytes(b"this is not a real image")

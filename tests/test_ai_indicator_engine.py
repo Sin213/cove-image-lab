@@ -70,6 +70,95 @@ def test_no_metadata_yields_format_size_context_and_no_camera_row():
     assert "8×8" in no_meta.observation
 
 
+# ---------------------------------------------------------------------------
+# "Possible stripped or re-encoded copy" weak-context card
+# ---------------------------------------------------------------------------
+
+def test_stripped_card_fires_for_truly_metadata_free_file():
+    rows = analyze(_md())  # Path("/dev/null") — no C2PA marker readable.
+    stripped = [r for r in rows if r.label == "Possible stripped or re-encoded copy"]
+    assert len(stripped) == 1
+    s = stripped[0]
+    assert s.severity == SEVERITY_WEAK
+    # Card must not claim a specific platform. Word-boundary regex so we
+    # don't false-positive on legitimate words like "signals".
+    import re as _re
+
+    blob = f"{s.observation} {s.explanation}".lower()
+    for forbidden_platform in (
+        "whatsapp",
+        "discord",
+        "telegram",
+        "instagram",
+        "facebook",
+        "twitter",
+        "imessage",
+        "signal-the-app",
+        "snapchat",
+        "tiktok",
+        "wechat",
+    ):
+        assert not _re.search(
+            rf"\b{_re.escape(forbidden_platform)}\b", blob
+        ), f"stripped card mentions specific platform: {forbidden_platform!r}"
+    # Card must use review-aid framing, not a verdict.
+    assert "not a conclusion" in blob
+    assert "not an authenticity determination" in blob
+    assert "original-source files may be more useful" in blob
+
+
+def test_stripped_card_suppressed_when_camera_exif_present():
+    rows = analyze(_md(camera_make="Canon", camera_model="EOS R5"))
+    assert "Possible stripped or re-encoded copy" not in _labels(rows)
+
+
+def test_stripped_card_suppressed_when_software_tag_present():
+    rows = analyze(_md(software="Adobe Photoshop 25.0"))
+    assert "Possible stripped or re-encoded copy" not in _labels(rows)
+
+
+def test_stripped_card_suppressed_when_xmp_present():
+    rows = analyze(_md(xmp="<x:xmpmeta>...</x:xmpmeta>"))
+    assert "Possible stripped or re-encoded copy" not in _labels(rows)
+
+
+def test_stripped_card_suppressed_when_png_text_present():
+    rows = analyze(_md(png_text={"parameters": "prompt: a cat"}))
+    assert "Possible stripped or re-encoded copy" not in _labels(rows)
+
+
+def test_stripped_card_suppressed_when_datetime_present():
+    rows = analyze(_md(datetime_original="2024:11:30 12:34:56"))
+    assert "Possible stripped or re-encoded copy" not in _labels(rows)
+
+
+def test_stripped_card_suppressed_when_c2pa_marker_present(tmp_path: Path):
+    p = tmp_path / "manifest.png"
+    arr = np.zeros((4, 4, 3), dtype=np.uint8)
+    PILImage.fromarray(arr, mode="RGB").save(p, format="PNG")
+    p.write_bytes(b"\x00\x00\x00\x20jumb\x00\x00\x00\x00" + p.read_bytes())
+    md = Metadata(path=p, format="PNG", size=(4, 4), mode="RGB")
+    rows = analyze(md)
+    labels = _labels(rows)
+    assert "Content credential marker" in labels
+    assert "Possible stripped or re-encoded copy" not in labels
+
+
+def test_stripped_card_coexists_with_no_metadata_rows():
+    rows = analyze(_md())
+    labels = _labels(rows)
+    # Both descriptive ("No metadata at all") and interpretive
+    # ("Possible stripped or re-encoded copy") rows are useful and
+    # convey different information; they may appear together.
+    assert "No metadata at all" in labels
+    assert "Possible stripped or re-encoded copy" in labels
+    # But only one stripped/re-encoded row, not many repeats.
+    stripped_count = sum(
+        1 for r in rows if r.label == "Possible stripped or re-encoded copy"
+    )
+    assert stripped_count == 1
+
+
 def test_software_field_is_a_possible_signal():
     rows = analyze(_md(software="Stable Diffusion 1.5"))
     sw = next(r for r in rows if r.label == "Software / editor tag")

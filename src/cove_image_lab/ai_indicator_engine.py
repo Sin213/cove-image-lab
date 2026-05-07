@@ -73,6 +73,7 @@ def analyze(metadata: Metadata) -> list[Indicator]:
     rows.extend(_png_text_indicators(metadata))
     rows.extend(_format_size_context(metadata))
     rows.extend(_c2pa_marker_indicator(metadata))
+    rows.extend(_stripped_or_reencoded_indicator(metadata))
 
     return rows
 
@@ -216,6 +217,43 @@ def _format_size_context(md: Metadata) -> Iterable[Indicator]:
                 "screenshots, web uploads, recompression, format "
                 "conversions, and re-saves. Absence of metadata is common "
                 "and is not a determination on its own."
+            ),
+            severity=SEVERITY_WEAK,
+        ),
+    )
+
+
+def _stripped_or_reencoded_indicator(md: Metadata) -> Iterable[Indicator]:
+    """Weak-context note when the file looks like a stripped/re-encoded copy.
+
+    Trigger: the file carries no useful metadata fields (no EXIF, XMP, PNG
+    text, camera, software, datetime, or thumbnail) **and** no C2PA / JUMBF
+    byte marker is present in the head. The presence of any of those
+    signals contradicts the "stripped or re-encoded" framing, so they
+    suppress this card.
+
+    The card never claims a specific platform (WhatsApp, Discord, social
+    media, email, etc.). It mentions categories of workflows that commonly
+    strip metadata so the reader can decide whether checking an
+    original-source file would be useful.
+    """
+    if md.has_metadata:
+        return ()
+    if _has_c2pa_marker(md.path):
+        return ()
+    return (
+        Indicator(
+            label="Possible stripped or re-encoded copy",
+            observation=(
+                "This copy may not preserve original metadata or content "
+                "credential signals."
+            ),
+            explanation=(
+                "Screenshots, messaging apps, social-media uploads, "
+                "recompression, and editor exports can remove metadata or "
+                "content credential markers. Original-source files may be "
+                "more useful for review. This is a weak contextual note, "
+                "not a conclusion and not an authenticity determination."
             ),
             severity=SEVERITY_WEAK,
         ),
