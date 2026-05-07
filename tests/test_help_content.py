@@ -76,6 +76,14 @@ def test_forensics_help_documents_zoom_controls():
     assert "percentage readout" in text
 
 
+def test_forensics_help_documents_human_review_notes():
+    text = _flatten(FORENSICS_SECTIONS)
+    assert "human review notes" in text
+    assert "user-written" in text
+    assert "local to the current session" in text
+    assert "not an authenticity determination" in text
+
+
 def test_forensics_help_documents_export():
     text = _flatten(FORENSICS_SECTIONS)
     assert "export result" in text

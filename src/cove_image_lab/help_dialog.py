@@ -145,6 +145,14 @@ FORENSICS_SECTIONS: list[tuple[str, list[str]]] = [
         ],
     ),
     (
+        "Human Review Notes",
+        [
+            "Use the Human Review Notes box to write down your own observations during visual inspection.",
+            "Notes are user-written; the app never adds, edits, or interprets them.",
+            "Notes are local to the current session; they are not saved to disk and they are not an authenticity determination.",
+        ],
+    ),
+    (
         "Exporting results",
         [
             "ELA and Noise Map results can be saved to your machine as PNG images via the Export Result button.",
