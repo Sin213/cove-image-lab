@@ -145,6 +145,15 @@ FORENSICS_SECTIONS: list[tuple[str, list[str]]] = [
         ],
     ),
     (
+        "Exporting results",
+        [
+            "ELA and Noise Map results can be saved to your machine as PNG images via the Export Result button.",
+            "Default filenames are cove_ela.png for ELA and cove_noise_map.png for Noise Map; rename in the save dialog as needed.",
+            "Exported PNGs are visual inspection aids only and do not prove authenticity or manipulation.",
+            "The Metadata view has no generated image, so Export Result is disabled there.",
+        ],
+    ),
+    (
         "Layout (ELA / Noise Map)",
         [
             "Single — shows the forensic view on its own.",

@@ -188,6 +188,11 @@ class ForensicsPanel(QWidget):
 
     WIPE_NOTE = "Visual inspection only — not a strict diff."
 
+    EXPORT_FILENAMES = {
+        MODE_ELA: "cove_ela.png",
+        MODE_NOISE: "cove_noise_map.png",
+    }
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
@@ -345,6 +350,7 @@ class ForensicsPanel(QWidget):
             title="Wipe — Original vs Forensic",
             left_label="Original",
             right_label="Forensic",
+            empty_hint="Load an image on the Compare tab to view the forensic wipe.",
         )
         self.forensic_wipe.set_note(self.WIPE_NOTE)
 
@@ -355,8 +361,11 @@ class ForensicsPanel(QWidget):
         self.view_stack.addWidget(self.forensic_wipe)      # wipe original vs forensic
 
         # --- export + status ------------------------------------------------
-        self.export_btn = QPushButton("Export forensic view as PNG…")
+        self.export_btn = QPushButton("Export Result")
         self.export_btn.setProperty("role", "primary")
+        self.export_btn.setToolTip(
+            "Save the current ELA or Noise Map result as a PNG image"
+        )
         self.export_btn.setEnabled(False)
         self.export_btn.clicked.connect(self._on_export)
 
@@ -543,14 +552,14 @@ class ForensicsPanel(QWidget):
     def _on_export(self) -> None:
         if self._last_view is None or self._mode == self.MODE_METADATA:
             return
-        default_name = f"forensic_{self._source}_{self._mode}.png"
+        default_name = self.EXPORT_FILENAMES.get(self._mode, "cove_forensic.png")
         default_path = (
             str(Path(self._last_save_dir) / default_name)
             if self._last_save_dir
             else default_name
         )
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export forensic view", default_path, "PNG (*.png)"
+            self, "Export forensic result", default_path, "PNG (*.png)"
         )
         if not path:
             return

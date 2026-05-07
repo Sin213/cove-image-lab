@@ -76,6 +76,16 @@ def test_forensics_help_documents_zoom_controls():
     assert "percentage readout" in text
 
 
+def test_forensics_help_documents_export():
+    text = _flatten(FORENSICS_SECTIONS)
+    assert "export result" in text
+    assert "ela" in text and "noise map" in text
+    assert "png" in text
+    assert "cove_ela.png" in text
+    assert "cove_noise_map.png" in text
+    assert "visual inspection aids only" in text
+
+
 def test_forensics_help_documents_layout_options():
     text = _flatten(FORENSICS_SECTIONS)
     assert "single" in text
