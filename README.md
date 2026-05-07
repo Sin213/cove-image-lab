@@ -178,6 +178,19 @@ share it. It is **manual only** — nothing is auto-detected.
   filename to keep originals intact.
 - Verify with the app running offline: every feature works identically.
 
+## Build a local Linux distributable
+
+For a self-contained one-folder bundle (Python + Qt + assets):
+
+```bash
+./packaging/build-linux.sh
+./dist/cove-image-lab/cove-image-lab
+```
+
+See [`packaging/README.md`](packaging/README.md) for spec details, the
+optional `.desktop` launcher template, and environment overrides.
+Windows and macOS packaging are not yet scaffolded.
+
 ## Project layout
 
 ```
@@ -212,6 +225,13 @@ tests/
   test_metadata_reader.py
   test_redaction_panel.py
   test_redaction_render.py
+
+packaging/
+  build-linux.sh           # one-folder Linux build wrapper
+  cove-image-lab.spec      # PyInstaller spec (uses repo-relative paths)
+  launcher.py              # absolute-import entry for the frozen binary
+  cove-image-lab.desktop   # .desktop launcher template
+  README.md                # build instructions + output layout
 ```
 
 The comparison engine, forensic engine, image loader, metadata reader, and
