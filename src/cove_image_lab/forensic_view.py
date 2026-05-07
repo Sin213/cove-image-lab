@@ -37,6 +37,7 @@ from .forensic_engine import ForensicError, error_level_analysis, noise_map
 from .help_dialog import open_forensics_help
 from .image_view import LabeledView, SyncedImageView, ndarray_to_qimage
 from .metadata_reader import Metadata, MetadataReadError, read_metadata
+from .wipe_view import CompareWipeView
 
 
 DISCLAIMER = (
@@ -183,6 +184,9 @@ class ForensicsPanel(QWidget):
 
     LAYOUT_SINGLE = "single"
     LAYOUT_SIDE_BY_SIDE = "side_by_side"
+    LAYOUT_WIPE = "wipe"
+
+    WIPE_NOTE = "Visual inspection only — not a strict diff."
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -233,6 +237,7 @@ class ForensicsPanel(QWidget):
         self.layout_toggle = _ToggleRow([
             (self.LAYOUT_SINGLE, "Single"),
             (self.LAYOUT_SIDE_BY_SIDE, "Side-by-side"),
+            (self.LAYOUT_WIPE, "Wipe"),
         ])
         self.layout_toggle.set_current(self.LAYOUT_SINGLE)
         self.layout_toggle.selected.connect(self._on_layout_changed)
@@ -336,10 +341,18 @@ class ForensicsPanel(QWidget):
             right_label="Forensic",
         )
 
+        self.forensic_wipe = CompareWipeView(
+            title="Wipe — Original vs Forensic",
+            left_label="Original",
+            right_label="Forensic",
+        )
+        self.forensic_wipe.set_note(self.WIPE_NOTE)
+
         self.view_stack = QStackedWidget()
         self.view_stack.addWidget(self.image_view)         # single forensic view
         self.view_stack.addWidget(self.metadata_card)      # metadata table
         self.view_stack.addWidget(self.side_by_side)       # original | forensic
+        self.view_stack.addWidget(self.forensic_wipe)      # wipe original vs forensic
 
         # --- export + status ------------------------------------------------
         self.export_btn = QPushButton("Export forensic view as PNG…")
@@ -437,6 +450,8 @@ class ForensicsPanel(QWidget):
             self.view_stack.setCurrentWidget(self.metadata_card)
         elif self._layout == self.LAYOUT_SIDE_BY_SIDE:
             self.view_stack.setCurrentWidget(self.side_by_side)
+        elif self._layout == self.LAYOUT_WIPE:
+            self.view_stack.setCurrentWidget(self.forensic_wipe)
         else:
             self.view_stack.setCurrentWidget(self.image_view)
 
@@ -453,6 +468,7 @@ class ForensicsPanel(QWidget):
             self.image_view.set_pixmap(None)
             self.image_view.set_toolbar_enabled(False)
             self.side_by_side.set_images(None, None)
+            self.forensic_wipe.set_images(None, None)
             self.export_btn.setEnabled(False)
             self.status.setText(
                 f"Load Image {'A' if self._source == 'a' else 'B'} on the Compare tab to begin."
@@ -486,6 +502,7 @@ class ForensicsPanel(QWidget):
             self.image_view.set_pixmap(None)
             self.image_view.set_toolbar_enabled(False)
             self.side_by_side.set_images(None, None)
+            self.forensic_wipe.set_images(None, None)
             self.export_btn.setEnabled(False)
             self.status.setText(f"Could not analyze image: {e}")
             return
@@ -495,6 +512,7 @@ class ForensicsPanel(QWidget):
         self.image_view.set_pixmap(forensic_pix)
         self.image_view.set_toolbar_enabled(True)
         self.side_by_side.set_images(original_pix, forensic_pix)
+        self.forensic_wipe.set_images(original_pix, forensic_pix)
         self.export_btn.setEnabled(True)
         self.status.setText(label + " — indicator only")
 

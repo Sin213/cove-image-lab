@@ -83,6 +83,9 @@ def test_forensics_help_documents_layout_options():
     assert "labeled original" in text
     assert "labeled forensic" in text
     assert "stay in sync" in text
+    assert "wipe" in text
+    assert "visual inspection only" in text
+    assert "not a strict diff" in text
 
 
 def test_forensics_help_explains_ela_and_noise_sliders():

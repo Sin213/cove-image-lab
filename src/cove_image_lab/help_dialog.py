@@ -150,6 +150,8 @@ FORENSICS_SECTIONS: list[tuple[str, list[str]]] = [
             "Single — shows the forensic view on its own.",
             "Side-by-side — shows the source image on the left labeled Original and the forensic view on the right labeled Forensic.",
             "In Side-by-side, mouse-wheel zoom and drag-pan stay in sync between the two panes.",
+            "Wipe — overlays the source image and the forensic view in a single frame; drag the divider to reveal more of either side.",
+            "Wipe is captioned \"Visual inspection only — not a strict diff\" because it is for the eye, not for pixel-difference math.",
             "The layout choice does not change ELA or Noise Map calculations.",
             "The Layout toggle is hidden in Metadata view because the metadata table is not an image.",
         ],
