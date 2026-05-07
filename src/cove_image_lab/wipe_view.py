@@ -91,8 +91,15 @@ class _WipeStage(QWidget):
         self._pan_y: int = 0
         self._gesture: str | None = None  # 'drag' | 'pan' | None
         self._pan_anchor: QPointF | None = None
+        self._left_corner: str = "A"
+        self._right_corner: str = "B"
 
     # --- public API ---------------------------------------------------------
+    def set_corner_labels(self, left: str, right: str) -> None:
+        self._left_corner = left
+        self._right_corner = right
+        self.update()
+
     def set_images(self, a: QPixmap | None, b: QPixmap | None) -> None:
         self._a = a if (a is not None and not a.isNull()) else None
         self._b = b if (b is not None and not b.isNull()) else None
@@ -212,9 +219,12 @@ class _WipeStage(QWidget):
                 p.restore()
 
         if self._a is not None and self._b is not None:
-            self._draw_corner_label(p, "A", rect.left() + 10, rect.top() + 10, accent=False)
             self._draw_corner_label(
-                p, "B", rect.right() - 10, rect.top() + 10, accent=True, align_right=True
+                p, self._left_corner, rect.left() + 10, rect.top() + 10, accent=False
+            )
+            self._draw_corner_label(
+                p, self._right_corner, rect.right() - 10, rect.top() + 10,
+                accent=True, align_right=True,
             )
 
         # Divider extends across the full widget height when in native mode
@@ -346,9 +356,21 @@ class _WipeStage(QWidget):
 
 
 class CompareWipeView(QFrame):
-    """Cove-style card holding the wipe stage, a title, and an inline note."""
+    """Cove-style card holding the wipe stage, a title, and an inline note.
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    Reusable: pass ``title`` plus ``left_label`` / ``right_label`` to relabel
+    the title strip and the in-image corner badges. Defaults match the
+    original Compare-tab look (``"Compare"`` / ``"A"`` / ``"B"``).
+    """
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        title: str = "Compare",
+        left_label: str = "A",
+        right_label: str = "B",
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("card")
         self.setFrameShape(QFrame.NoFrame)
@@ -357,8 +379,11 @@ class CompareWipeView(QFrame):
         self._a: QPixmap | None = None
         self._b: QPixmap | None = None
         self._note_text: str = ""
+        self._title_text: str = title
+        self._left_label: str = left_label
+        self._right_label: str = right_label
 
-        self.title_label = QLabel("Compare")
+        self.title_label = QLabel(title)
         self.title_label.setProperty("role", "title")
 
         self.percent_label = QLabel("50%")
@@ -381,6 +406,7 @@ class CompareWipeView(QFrame):
         title_row.addWidget(self.fullscreen_btn)
 
         self.stage = _WipeStage(self)
+        self.stage.set_corner_labels(left_label, right_label)
         self.stage.positionChanged.connect(self._on_position_changed)
 
         self.note_label = QLabel("")
@@ -421,6 +447,9 @@ class CompareWipeView(QFrame):
             b=self._b,
             position=self.stage.position(),
             note_text=self._note_text,
+            title=self._title_text,
+            left_label=self._left_label,
+            right_label=self._right_label,
             parent=self.window(),
         )
         # Modal exec; the dialog enters fullscreen during its own show.
@@ -439,6 +468,9 @@ class WipeFullscreenDialog(QDialog):
         b: QPixmap,
         position: float,
         note_text: str = "",
+        title: str = "Compare",
+        left_label: str = "A",
+        right_label: str = "B",
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -446,7 +478,7 @@ class WipeFullscreenDialog(QDialog):
         # The QDialog inherits the global app stylesheet, so card/button roles
         # match the rest of the app automatically.
 
-        self.title_label = QLabel("Compare")
+        self.title_label = QLabel(title)
         self.title_label.setProperty("role", "title")
 
         self.percent_label = QLabel(f"{int(round(position * 100))}%")
@@ -485,6 +517,7 @@ class WipeFullscreenDialog(QDialog):
         header_card.setLayout(header)
 
         self.stage = _WipeStage(self)
+        self.stage.set_corner_labels(left_label, right_label)
         self.stage.set_images(a, b)
         self.stage.set_position(position)
         self.stage.positionChanged.connect(
