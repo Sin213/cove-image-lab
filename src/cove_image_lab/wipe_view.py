@@ -93,11 +93,16 @@ class _WipeStage(QWidget):
         self._pan_anchor: QPointF | None = None
         self._left_corner: str = "A"
         self._right_corner: str = "B"
+        self._empty_hint: str = "Drop or load both images to compare."
 
     # --- public API ---------------------------------------------------------
     def set_corner_labels(self, left: str, right: str) -> None:
         self._left_corner = left
         self._right_corner = right
+        self.update()
+
+    def set_empty_hint(self, text: str) -> None:
+        self._empty_hint = text or ""
         self.update()
 
     def set_images(self, a: QPixmap | None, b: QPixmap | None) -> None:
@@ -198,7 +203,8 @@ class _WipeStage(QWidget):
         p.fillRect(self.rect(), QColor(theme.BG_INPUT))
 
         if self._a is None and self._b is None:
-            self._draw_hint(p, "Drop or load both images to compare.")
+            if self._empty_hint:
+                self._draw_hint(p, self._empty_hint)
             return
 
         rect = self._image_rect()
@@ -370,6 +376,7 @@ class CompareWipeView(QFrame):
         title: str = "Compare",
         left_label: str = "A",
         right_label: str = "B",
+        empty_hint: str = "Drop or load both images to compare.",
     ) -> None:
         super().__init__(parent)
         self.setObjectName("card")
@@ -382,6 +389,7 @@ class CompareWipeView(QFrame):
         self._title_text: str = title
         self._left_label: str = left_label
         self._right_label: str = right_label
+        self._empty_hint: str = empty_hint
 
         self.title_label = QLabel(title)
         self.title_label.setProperty("role", "title")
@@ -407,6 +415,7 @@ class CompareWipeView(QFrame):
 
         self.stage = _WipeStage(self)
         self.stage.set_corner_labels(left_label, right_label)
+        self.stage.set_empty_hint(empty_hint)
         self.stage.positionChanged.connect(self._on_position_changed)
 
         self.note_label = QLabel("")
