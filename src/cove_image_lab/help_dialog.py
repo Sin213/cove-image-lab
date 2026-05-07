@@ -162,6 +162,16 @@ FORENSICS_SECTIONS: list[tuple[str, list[str]]] = [
         ],
     ),
     (
+        "Exporting a review report",
+        [
+            "Use the Export Review Report button next to Human Review Notes to save a local plain-text report.",
+            "The default filename is cove_review_report.txt and the file is written as UTF-8.",
+            "The report includes the active source, view mode, layout, loaded image filenames, and your verbatim notes alongside session context.",
+            "Review reports are visual inspection aids only and are not an authenticity determination.",
+            "The button is disabled until at least one image is loaded; nothing is auto-saved.",
+        ],
+    ),
+    (
         "Layout (ELA / Noise Map)",
         [
             "Single — shows the forensic view on its own.",
