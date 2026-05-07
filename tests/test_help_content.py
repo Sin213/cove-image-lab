@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 
 from cove_image_lab.help_dialog import (
+    AI_INDICATOR_SECTIONS,
     COMPARE_SECTIONS,
     FORENSICS_SECTIONS,
     REDACTION_SECTIONS,
@@ -164,6 +165,42 @@ def test_redaction_help_has_no_banned_wording():
     _assert_no_banned(REDACTION_SECTIONS, "REDACTION_SECTIONS")
 
 
+def test_ai_indicator_help_has_no_banned_wording():
+    _assert_no_banned(AI_INDICATOR_SECTIONS, "AI_INDICATOR_SECTIONS")
+
+
+def test_ai_indicator_help_documents_indicator_only_framing():
+    text = _flatten(AI_INDICATOR_SECTIONS)
+    assert "review aid" in text
+    assert "limitations" in text
+    # The three severity chips must be documented.
+    assert "weak context" in text
+    assert "possible signal" in text
+    assert "worth a look" in text
+    # No score / no verdict framing must appear in the help.
+    assert "no score" in text or "score, percentage" in text
+
+
+def test_ai_indicator_help_lists_what_is_surfaced():
+    text = _flatten(AI_INDICATOR_SECTIONS)
+    for keyword in (
+        "software",
+        "camera",
+        "xmp",
+        "png text",
+        "c2pa",
+        "jumbf",
+    ):
+        assert keyword in text, f"missing surfaced-category keyword: {keyword!r}"
+
+
+def test_ai_indicator_help_states_no_network_or_model():
+    text = _flatten(AI_INDICATOR_SECTIONS)
+    assert "does not download models" in text
+    assert "does not call any cloud or network service" in text
+    assert "does not run an ml detector" in text
+
+
 def test_redaction_help_documents_manual_redaction_workflow():
     text = _flatten(REDACTION_SECTIONS)
     assert "redaction" in text
@@ -189,6 +226,7 @@ def test_proof_appears_only_in_negation_contexts():
         ("COMPARE_SECTIONS", COMPARE_SECTIONS),
         ("FORENSICS_SECTIONS", FORENSICS_SECTIONS),
         ("REDACTION_SECTIONS", REDACTION_SECTIONS),
+        ("AI_INDICATOR_SECTIONS", AI_INDICATOR_SECTIONS),
     ):
         for _, bullets in sections:
             for line in bullets:

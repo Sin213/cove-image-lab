@@ -186,6 +186,59 @@ FORENSICS_SECTIONS: list[tuple[str, list[str]]] = [
 ]
 
 
+AI_INDICATOR_SECTIONS: list[tuple[str, list[str]]] = [
+    (
+        "What the AI Indicator tab is for",
+        [
+            "The AI Indicator tab surfaces possible indicators from the metadata of a single source image — Image A or Image B.",
+            "Indicators are review aids only.",
+            "They do not prove an image is generated, edited, real, or authored by a human.",
+            "There is no score, percentage, or summary verdict — each row stands on its own.",
+        ],
+    ),
+    (
+        "How to read an indicator",
+        [
+            "Each row has a label, an observation about what was found, and a plain-language explanation of why it may or may not matter.",
+            "The chip on the right is a coarse category, not a score: weak context, possible signal, or worth a look.",
+            "Treat indicators as inputs to a human review, not as a determination.",
+        ],
+    ),
+    (
+        "What gets surfaced",
+        [
+            "Software / editor tags from EXIF.",
+            "Camera make and model presence — or absence — as context.",
+            "Capture date/time presence as context.",
+            "XMP packet presence and a short snippet.",
+            "PNG text chunks and their values.",
+            "Content credential byte markers (C2PA / JUMBF) if the file head contains them.",
+            "Format and size context when no metadata at all is present.",
+        ],
+    ),
+    (
+        "Limitations",
+        [
+            "Metadata can be missing, stripped, edited, or misleading.",
+            "Absence of indicators does not mean an image was not generated.",
+            "Presence of indicators does not prove generation or editing.",
+            "Screenshots, recompression, social-media uploads, and editor exports can remove or change signals.",
+            "This tab is a review aid, not a determination.",
+        ],
+    ),
+    (
+        "What this tab does not do",
+        [
+            "It does not download models.",
+            "It does not call any cloud or network service.",
+            "It does not run an ML detector or compute a numeric score.",
+            "It does not write files or modify the loaded image.",
+            "Results are session-only and are not included in the Review Report.",
+        ],
+    ),
+]
+
+
 REDACTION_SECTIONS: list[tuple[str, list[str]]] = [
     (
         "What the Redaction tab is for",
@@ -313,3 +366,12 @@ def open_forensics_help(parent: QWidget | None = None) -> None:
 def open_redaction_help(parent: QWidget | None = None) -> None:
     """Open the modal Redaction help dialog."""
     HelpDialog("Redaction — How to use", REDACTION_SECTIONS, parent=parent).exec()
+
+
+def open_ai_indicator_help(parent: QWidget | None = None) -> None:
+    """Open the modal AI Indicator help dialog."""
+    HelpDialog(
+        "AI Indicator — How to use",
+        AI_INDICATOR_SECTIONS,
+        parent=parent,
+    ).exec()

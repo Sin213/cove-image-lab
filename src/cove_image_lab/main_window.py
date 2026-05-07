@@ -34,6 +34,7 @@ from .forensic_view import ForensicsPanel
 from .help_dialog import open_compare_help
 from .image_loader import ImageLoadError, load_rgba
 from .image_view import LabeledView, SyncedImageView, ndarray_to_qimage
+from .ai_indicator_view import AIIndicatorView
 from .redaction_view import RedactionPanel
 from .wipe_view import CompareWipeView
 
@@ -376,12 +377,21 @@ class MainWindow(QMainWindow):
         redaction_lay.setSpacing(0)
         redaction_lay.addWidget(self.redaction)
 
+        # --- ai indicator tab body ----------------------------------------
+        self.ai_indicator = AIIndicatorView()
+        ai_indicator_tab = QWidget()
+        ai_indicator_lay = QVBoxLayout(ai_indicator_tab)
+        ai_indicator_lay.setContentsMargins(0, 10, 0, 0)
+        ai_indicator_lay.setSpacing(0)
+        ai_indicator_lay.addWidget(self.ai_indicator)
+
         # --- tabs ---------------------------------------------------------
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         self.tabs.addTab(compare_tab, "Compare")
         self.tabs.addTab(forensics_tab, "Forensics")
         self.tabs.addTab(redaction_tab, "Redaction")
+        self.tabs.addTab(ai_indicator_tab, "AI Indicator")
         self.tabs.setStyleSheet(_tab_qss())
 
         # --- root layout --------------------------------------------------
@@ -442,6 +452,7 @@ class MainWindow(QMainWindow):
 
         self.forensics.set_image(slot, arr, path)
         self.redaction.set_image(slot, arr, path)
+        self.ai_indicator.set_image(slot, arr, path)
         self._remember_open_dir(path)
         self._refresh_side_by_side()
         self._recompute()
@@ -464,6 +475,7 @@ class MainWindow(QMainWindow):
 
         self.forensics.set_image(slot, None, None)
         self.redaction.set_image(slot, None, None)
+        self.ai_indicator.set_image(slot, None, None)
         self._refresh_side_by_side()
         self._recompute()
         self.statusBar().showMessage(f"Cleared Image {slot.upper()}")
