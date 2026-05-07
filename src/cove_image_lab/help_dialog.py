@@ -134,6 +134,16 @@ FORENSICS_SECTIONS: list[tuple[str, list[str]]] = [
             "GPS is displayed locally only. No online lookups.",
         ],
     ),
+    (
+        "Zoom controls (ELA / Noise Map)",
+        [
+            "Fit — scales the forensic view to fill the available area.",
+            "100% — shows the forensic view at native pixel size for close inspection.",
+            "The percentage readout shows the current on-screen scale.",
+            "Use the mouse wheel to zoom in or out, and drag to pan when zoomed in.",
+            "Zoom controls are unavailable in Metadata view and when no image is loaded.",
+        ],
+    ),
 ]
 
 
