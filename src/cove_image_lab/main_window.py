@@ -47,9 +47,10 @@ def _ndarray_to_pixmap(arr: np.ndarray) -> QPixmap:
 
 
 class DropSlot(QFrame):
-    """A drop-zone card with a 'Load…' button and a tiny preview row."""
+    """A drop-zone card with Load… / Clear buttons and a tiny preview row."""
 
     fileChosen = Signal(str)
+    cleared = Signal()
 
     def __init__(self, label: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -76,12 +77,18 @@ class DropSlot(QFrame):
         self.load_btn = QPushButton("Load…")
         self.load_btn.clicked.connect(self._open_picker)
 
+        self.clear_btn = QPushButton("Clear")
+        self.clear_btn.setToolTip(f"Remove the loaded {label}")
+        self.clear_btn.setEnabled(False)
+        self.clear_btn.clicked.connect(self.cleared)
+
         top = QHBoxLayout()
         top.setContentsMargins(0, 0, 0, 0)
         top.setSpacing(8)
         top.addWidget(self.title)
         top.addStretch(1)
         top.addWidget(self.load_btn)
+        top.addWidget(self.clear_btn)
 
         bottom = QVBoxLayout()
         bottom.setContentsMargins(0, 0, 0, 0)
@@ -139,8 +146,10 @@ class DropSlot(QFrame):
     def set_loaded(self, path: Path | None) -> None:
         if path is None:
             self.path_label.setText("")
+            self.clear_btn.setEnabled(False)
         else:
             self.path_label.setText(str(path))
+            self.clear_btn.setEnabled(True)
 
 
 class SummaryCard(QFrame):
@@ -251,6 +260,8 @@ class MainWindow(QMainWindow):
         self.slot_b = DropSlot("Image B")
         self.slot_a.fileChosen.connect(lambda p: self._load_into("a", p))
         self.slot_b.fileChosen.connect(lambda p: self._load_into("b", p))
+        self.slot_a.cleared.connect(lambda: self._clear_slot("a"))
+        self.slot_b.cleared.connect(lambda: self._clear_slot("b"))
 
         slots = QHBoxLayout()
         slots.setSpacing(10)
@@ -423,6 +434,27 @@ class MainWindow(QMainWindow):
         self._remember_open_dir(path)
         self._refresh_side_by_side()
         self._recompute()
+
+    def _clear_slot(self, slot: str) -> None:
+        if slot == "a":
+            if self._image_a is None and self._path_a is None:
+                return
+            self._image_a = None
+            self._path_a = None
+            self.slot_a.set_loaded(None)
+        elif slot == "b":
+            if self._image_b is None and self._path_b is None:
+                return
+            self._image_b = None
+            self._path_b = None
+            self.slot_b.set_loaded(None)
+        else:
+            return
+
+        self.forensics.set_image(slot, None, None)
+        self._refresh_side_by_side()
+        self._recompute()
+        self.statusBar().showMessage(f"Cleared Image {slot.upper()}")
 
     def _refresh_side_by_side(self) -> None:
         left = _ndarray_to_pixmap(self._image_a) if self._image_a is not None else None
