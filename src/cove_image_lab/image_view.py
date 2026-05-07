@@ -235,10 +235,16 @@ class LabeledView(QFrame):
 class SyncedImageView(QWidget):
     """Two LabeledView panes whose zoom and pan stay in sync."""
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        left_label: str = "Image A",
+        right_label: str = "Image B",
+    ) -> None:
         super().__init__(parent)
-        self.left = LabeledView("Image A", self)
-        self.right = LabeledView("Image B", self)
+        self.left = LabeledView(left_label, self)
+        self.right = LabeledView(right_label, self)
 
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
