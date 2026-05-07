@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QPlainTextEdit,
     QPushButton,
     QSizePolicy,
     QSlider,
@@ -44,6 +45,13 @@ DISCLAIMER = (
     "Forensic views can reveal suspicious patterns, "
     "but they do not prove authenticity or manipulation."
 )
+
+NOTES_PLACEHOLDER = (
+    "Write your own observations here. "
+    "Notes are local and are not an authenticity determination."
+)
+
+NOTES_HINT = "Local to this session. Not an authenticity determination."
 
 
 def _ndarray_to_pixmap(arr: np.ndarray) -> QPixmap:
@@ -386,6 +394,44 @@ class ForensicsPanel(QWidget):
         body.addLayout(controls_col, 1)
         body.addWidget(self.view_stack, 3)
 
+        # --- human review notes (in-memory only, session-scoped) -----------
+        notes_card = QFrame()
+        notes_card.setObjectName("card")
+        notes_lay = QVBoxLayout(notes_card)
+        notes_lay.setContentsMargins(12, 10, 12, 10)
+        notes_lay.setSpacing(6)
+
+        notes_title = QLabel("Human Review Notes")
+        notes_title.setProperty("role", "title")
+
+        notes_hint = QLabel(NOTES_HINT)
+        notes_hint.setProperty("role", "muted")
+        notes_hint.setWordWrap(True)
+
+        self.notes_edit = QPlainTextEdit()
+        self.notes_edit.setPlaceholderText(NOTES_PLACEHOLDER)
+        self.notes_edit.setFixedHeight(110)
+        self.notes_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.notes_edit.setStyleSheet(
+            f"""
+            QPlainTextEdit {{
+                background-color: {theme.BG_INPUT};
+                color: {theme.TEXT_PRIMARY};
+                border: 1px solid {theme.BORDER};
+                border-radius: {theme.RADIUS_SM}px;
+                padding: 6px 8px;
+                selection-background-color: {theme.ACCENT};
+                selection-color: {theme.BG_INPUT};
+            }}
+            QPlainTextEdit:focus {{ border-color: {theme.ACCENT}; }}
+            """
+        )
+
+        notes_lay.addWidget(notes_title)
+        notes_lay.addWidget(notes_hint)
+        notes_lay.addWidget(self.notes_edit)
+        self.notes_card = notes_card
+
         # --- disclaimer (always visible) ------------------------------------
         disclaimer_card = QFrame()
         disclaimer_card.setObjectName("card")
@@ -407,6 +453,7 @@ class ForensicsPanel(QWidget):
         root.addWidget(header)
         root.addWidget(disclaimer_card)
         root.addLayout(body, 1)
+        root.addWidget(self.notes_card)
         root.addWidget(self.status)
 
         self._update_mode_visibility()
