@@ -84,6 +84,16 @@ def test_forensics_help_documents_human_review_notes():
     assert "not an authenticity determination" in text
 
 
+def test_forensics_help_documents_review_report_export():
+    text = _flatten(FORENSICS_SECTIONS)
+    assert "review report" in text
+    assert "export review report" in text
+    assert "cove_review_report.txt" in text
+    assert "utf-8" in text
+    assert "verbatim notes" in text
+    assert "not an authenticity determination" in text
+
+
 def test_forensics_help_documents_export():
     text = _flatten(FORENSICS_SECTIONS)
     assert "export result" in text

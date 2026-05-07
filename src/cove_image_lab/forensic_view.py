@@ -7,6 +7,7 @@ permanent disclaimer makes the indicator-only framing explicit.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -52,6 +53,23 @@ NOTES_PLACEHOLDER = (
 )
 
 NOTES_HINT = "Local to this session. Not an authenticity determination."
+
+REVIEW_REPORT_CAUTION = (
+    "This report is for visual inspection only and is not an authenticity determination."
+)
+REVIEW_REPORT_TITLE = "Cove Image Lab Review Report"
+REVIEW_REPORT_DEFAULT_NAME = "cove_review_report.txt"
+
+_MODE_LABELS = {
+    "ela": "Error Level Analysis",
+    "noise": "Noise Map",
+    "metadata": "Metadata",
+}
+_LAYOUT_LABELS = {
+    "single": "Single",
+    "side_by_side": "Side-by-side",
+    "wipe": "Wipe",
+}
 
 
 def _ndarray_to_pixmap(arr: np.ndarray) -> QPixmap:
@@ -404,6 +422,21 @@ class ForensicsPanel(QWidget):
         notes_title = QLabel("Human Review Notes")
         notes_title.setProperty("role", "title")
 
+        self.export_report_btn = QPushButton("Export Review Report")
+        self.export_report_btn.setProperty("role", "header")
+        self.export_report_btn.setEnabled(False)
+        self.export_report_btn.setToolTip(
+            "Save a local plain-text review report including session context and your notes."
+        )
+        self.export_report_btn.clicked.connect(self._on_export_report)
+
+        notes_title_row = QHBoxLayout()
+        notes_title_row.setContentsMargins(0, 0, 0, 0)
+        notes_title_row.setSpacing(8)
+        notes_title_row.addWidget(notes_title)
+        notes_title_row.addStretch(1)
+        notes_title_row.addWidget(self.export_report_btn)
+
         notes_hint = QLabel(NOTES_HINT)
         notes_hint.setProperty("role", "muted")
         notes_hint.setWordWrap(True)
@@ -427,7 +460,7 @@ class ForensicsPanel(QWidget):
             """
         )
 
-        notes_lay.addWidget(notes_title)
+        notes_lay.addLayout(notes_title_row)
         notes_lay.addWidget(notes_hint)
         notes_lay.addWidget(self.notes_edit)
         self.notes_card = notes_card
@@ -516,6 +549,11 @@ class ForensicsPanel(QWidget):
             self._refresh_metadata()
         else:
             self._refresh_forensic_image()
+        self._refresh_report_btn_state()
+
+    def _refresh_report_btn_state(self) -> None:
+        has_any_image = self._image_a is not None or self._image_b is not None
+        self.export_report_btn.setEnabled(has_any_image)
 
     def _refresh_forensic_image(self) -> None:
         arr = self._current_array()
@@ -619,3 +657,70 @@ class ForensicsPanel(QWidget):
             return
         self._last_save_dir = str(Path(out).parent)
         self.status.setText(f"Exported {out}")
+
+    def build_review_report(self, *, now: datetime | None = None) -> str:
+        """Return the plain-text review report for the current panel state.
+
+        Pure: no I/O, no Qt dialogs. ``now`` is injectable for tests; defaults
+        to ``datetime.now()`` at call time.
+        """
+        if now is None:
+            now = datetime.now()
+        timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        # Filenames only — never full paths — so a shared report does not
+        # leak local usernames, folders, or client/project directory names.
+        a_path = self._path_a.name if self._path_a is not None else "(not loaded)"
+        b_path = self._path_b.name if self._path_b is not None else "(not loaded)"
+        source_label = "A" if self._source == "a" else "B"
+        mode_label = _MODE_LABELS.get(self._mode, self._mode)
+        layout_label = _LAYOUT_LABELS.get(self._layout, self._layout)
+
+        notes_text = self.notes_edit.toPlainText().rstrip()
+        notes_block = notes_text if notes_text else "(none)"
+
+        lines = [
+            REVIEW_REPORT_TITLE,
+            "=" * len(REVIEW_REPORT_TITLE),
+            "",
+            f"Generated: {timestamp}",
+            "",
+            f"Image A: {a_path}",
+            f"Image B: {b_path}",
+            "",
+            f"Active source: {source_label}",
+            f"View mode: {mode_label}",
+            f"Layout: {layout_label}",
+            "",
+            "Human Review Notes:",
+            "-" * len("Human Review Notes:"),
+            notes_block,
+            "",
+            REVIEW_REPORT_CAUTION,
+            "",
+        ]
+        return "\n".join(lines)
+
+    def _on_export_report(self) -> None:
+        if self._image_a is None and self._image_b is None:
+            self.status.setText("Load Image A or Image B before exporting a review report.")
+            return
+        default_path = (
+            str(Path(self._last_save_dir) / REVIEW_REPORT_DEFAULT_NAME)
+            if self._last_save_dir
+            else REVIEW_REPORT_DEFAULT_NAME
+        )
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export review report", default_path, "Text files (*.txt)"
+        )
+        if not path:
+            return
+        if not path.lower().endswith(".txt"):
+            path = path + ".txt"
+        try:
+            Path(path).write_text(self.build_review_report(), encoding="utf-8")
+        except OSError as e:
+            self.status.setText(f"Could not save report: {e}")
+            return
+        self._last_save_dir = str(Path(path).parent)
+        self.status.setText(f"Exported {path}")
