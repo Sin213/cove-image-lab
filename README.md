@@ -41,6 +41,19 @@ python -m pytest -q
 
 ## Using the app
 
+### Window controls
+- The app uses a **frameless window with a custom 44 px Cove titlebar**
+  in place of the OS title bar. The bar shows the app icon, the
+  "Cove Image Lab" title, and a teal version pill.
+- **Drag** anywhere on empty titlebar space to move the window. The
+  drag is handed off to the window manager via `startSystemMove`, so it
+  works correctly on Wayland (where `QWidget.move()` is a no-op for
+  top-level windows) as well as X11, Windows, and macOS.
+- **Double-click** the titlebar to toggle maximize / restore.
+- The right-side controls are **minimize**, **maximize / restore**, and
+  **close**. Hovering close turns it red; the maximize glyph swaps
+  between `□` and `❐` to reflect window state.
+
 ### Loading images
 - Drop a local image file into either slot (Image A or Image B).
 - Or click **Load…** in either slot to open a native file picker.
@@ -182,7 +195,13 @@ The tab is a **review aid**, not a detector.
 - Categories surfaced: software / editor tag (EXIF), camera make/model
   presence or absence, capture date/time, XMP packet presence, PNG text
   chunks, content credential byte markers (C2PA / JUMBF) when present in
-  the file head, and format/size context for metadata-free files.
+  the file head, format/size context for metadata-free files, and a
+  weak-context note for files that look like a **stripped or re-encoded
+  copy** (no useful metadata fields and no C2PA / JUMBF marker — common
+  after screenshots, messaging-app uploads, social-media uploads,
+  recompression, or editor exports). The stripped-copy note never names a
+  specific platform and is suppressed as soon as any real metadata or
+  content-credential signal is present.
 - Pick **Image A** or **Image B** with the Source toggle; switching
   sources updates the indicator list. Each source keeps its own state
   for the session.
