@@ -950,6 +950,10 @@ class MainWindow(QMainWindow):
 
 def _tab_qss() -> str:
     """Cove-themed QSS for the Compare/Forensics tab bar."""
+    # Single source of tab height: min-height on QTabBar::tab with horizontal-only
+    # padding. Setting min-height on QTabBar AND vertical padding on QTabBar::tab
+    # makes Qt resolve a content rect that's shorter than the tab's drawn rect,
+    # which clips glyph extents at top/bottom.
     return f"""
     QTabWidget::pane {{
         border: 1px solid {theme.BORDER};
@@ -957,12 +961,14 @@ def _tab_qss() -> str:
         background-color: {theme.BG_BASE};
         top: -1px;
     }}
-    QTabBar {{ background: transparent; }}
+    QTabBar {{
+        background: transparent;
+    }}
     QTabBar::tab {{
         background: {theme.BG_SURFACE};
         color: {theme.TEXT_MUTED};
-        min-height: 30px;
-        padding: 4px 18px;
+        min-height: 34px;
+        padding: 0 20px;
         margin-right: 4px;
         border: 1px solid {theme.BORDER};
         border-bottom: none;
