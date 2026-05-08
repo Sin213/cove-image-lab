@@ -29,3 +29,7 @@ Thumbs.db
 exports/
 output/
 *.log
+
+# Personal MDs
+RELEASES.md
+WORKFLOW.md
