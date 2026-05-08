@@ -23,9 +23,9 @@ from PySide6.QtWidgets import (
     QLabel,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QSlider,
-    QSpinBox,
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -38,7 +38,7 @@ from .diff_exporter import DiffExportError, export_png
 from .forensic_engine import ForensicError, error_level_analysis, noise_map
 from .help_dialog import open_forensics_help
 from .image_view import LabeledView, SyncedImageView, ndarray_to_qimage
-from .metadata_reader import Metadata, MetadataReadError, read_metadata
+from .metadata_reader import MetadataReadError, read_metadata
 from .wipe_view import CompareWipeView
 
 
@@ -76,6 +76,89 @@ def _ndarray_to_pixmap(arr: np.ndarray) -> QPixmap:
     return QPixmap.fromImage(ndarray_to_qimage(arr))
 
 
+def _forensics_qss() -> str:
+    """Forensics-only layout polish mirroring the reference hierarchy."""
+    return f"""
+    QFrame#forensicWorkspace {{
+        background-color: {theme.BG_SURFACE};
+        border: 1px solid {theme.BORDER};
+        border-radius: 14px;
+    }}
+    QFrame#forensicHeader,
+    QFrame#forensicPanel {{
+        background-color: {theme.BG_SURFACE_RAISED};
+        border: 1px solid {theme.BORDER};
+        border-radius: {theme.RADIUS}px;
+    }}
+    QFrame#forensicDisclaimer {{
+        background-color: rgba(226, 176, 108, 18);
+        border: 1px solid rgba(226, 176, 108, 54);
+        border-radius: {theme.RADIUS_SM}px;
+    }}
+    QLabel[role="forensic-title"] {{
+        color: {theme.TEXT_MUTED};
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        padding: 0;
+    }}
+    QLabel[role="field-label"] {{
+        color: {theme.TEXT_DIM};
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }}
+    QLabel[role="panel-title"] {{
+        color: {theme.TEXT_MUTED};
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        padding: 0;
+    }}
+    QScrollArea#forensicSidebar {{
+        background: transparent;
+        border: none;
+    }}
+    QScrollArea#forensicSidebar > QWidget > QWidget {{
+        background: transparent;
+    }}
+    QPushButton[role="segmented"] {{
+        padding: 5px 11px;
+        min-height: 22px;
+        background-color: {theme.BG_INPUT};
+        color: {theme.TEXT_MUTED};
+        border: 1px solid {theme.BORDER};
+        border-radius: {theme.RADIUS_SM}px;
+    }}
+    QPushButton[role="segmented"]:checked {{
+        background-color: rgba(80, 230, 207, 34);
+        color: {theme.ACCENT};
+        border-color: rgba(80, 230, 207, 110);
+        font-weight: 600;
+    }}
+    QPushButton[role="segmented"]:hover:!checked {{
+        color: {theme.TEXT_PRIMARY};
+        border-color: {theme.BORDER_STRONG};
+        background-color: {theme.BG_SURFACE_RAISED};
+    }}
+    QPlainTextEdit#forensicNotes {{
+        background-color: {theme.BG_INPUT};
+        color: {theme.TEXT_PRIMARY};
+        border: 1px solid {theme.BORDER};
+        border-radius: {theme.RADIUS_SM}px;
+        padding: 6px 8px;
+        selection-background-color: {theme.ACCENT};
+        selection-color: {theme.BG_INPUT};
+    }}
+    QPlainTextEdit#forensicNotes:focus {{
+        border-color: {theme.ACCENT};
+    }}
+    """
+
+
 class _ToggleRow(QWidget):
     """A horizontal row of mutually-exclusive header-style buttons."""
 
@@ -91,7 +174,7 @@ class _ToggleRow(QWidget):
         for key, label in options:
             btn = QPushButton(label)
             btn.setCheckable(True)
-            btn.setProperty("role", "header")
+            btn.setProperty("role", "segmented")
             btn.setProperty("opt_key", key)
             btn.clicked.connect(lambda _checked=False, k=key: self.selected.emit(k))
             self._group.addButton(btn)
@@ -133,11 +216,14 @@ class _LabeledSlider(QWidget):
 
         self.readout = QLabel("")
         self.readout.setProperty("role", "muted")
-        self.readout.setMinimumWidth(48)
+        # Wide enough for "-80", "100", "160", "40×" with a glyph margin so the
+        # last digit doesn't 1-px-clip against the readout's own bounding rect.
+        self.readout.setMinimumWidth(56)
         self.readout.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
         lay = QGridLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
+        # Right margin keeps the readout off the card's inner edge.
+        lay.setContentsMargins(0, 0, 4, 0)
         lay.setHorizontalSpacing(8)
         lay.setVerticalSpacing(2)
         lay.addWidget(self.title, 0, 0)
@@ -170,6 +256,12 @@ class _MetadataTable(QTableWidget):
         self.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.horizontalHeader().setStretchLastSection(True)
+        # Don't propagate the table's preferred (column-sum) width up the layout
+        # tree — otherwise QStackedWidget.sizeHint() picks up this card's wide
+        # hint and forces the whole Forensics workspace wider than the window,
+        # clipping every right-edge label in both the sidebar and the right
+        # pane. The table scrolls horizontally inside its own frame instead.
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Expanding)
         self.setStyleSheet(
             f"""
             QTableWidget {{
@@ -232,15 +324,17 @@ class ForensicsPanel(QWidget):
         self._layout = self.LAYOUT_SINGLE
         self._last_save_dir = ""
 
+        self.setStyleSheet(_forensics_qss())
+
         # --- source + mode header -------------------------------------------
         header = QFrame()
-        header.setObjectName("card")
+        header.setObjectName("forensicHeader")
         hlay = QVBoxLayout(header)
-        hlay.setContentsMargins(12, 10, 12, 10)
-        hlay.setSpacing(8)
+        hlay.setContentsMargins(14, 12, 14, 12)
+        hlay.setSpacing(12)
 
-        title = QLabel("Forensics")
-        title.setProperty("role", "title")
+        title = QLabel("FORENSICS")
+        title.setProperty("role", "forensic-title")
 
         self.help_btn = QPushButton("How to use")
         self.help_btn.setProperty("role", "header")
@@ -274,24 +368,25 @@ class ForensicsPanel(QWidget):
         self.layout_toggle.selected.connect(self._on_layout_changed)
 
         source_label = QLabel("Source")
-        source_label.setProperty("role", "muted")
+        source_label.setProperty("role", "field-label")
         mode_label = QLabel("View")
-        mode_label.setProperty("role", "muted")
+        mode_label.setProperty("role", "field-label")
         self.layout_label = QLabel("Layout")
-        self.layout_label.setProperty("role", "muted")
+        self.layout_label.setProperty("role", "field-label")
 
         header_grid = QGridLayout()
         header_grid.setContentsMargins(0, 0, 0, 0)
-        header_grid.setHorizontalSpacing(16)
-        header_grid.setVerticalSpacing(2)
+        header_grid.setHorizontalSpacing(18)
+        header_grid.setVerticalSpacing(6)
         header_grid.addWidget(source_label, 0, 0)
         header_grid.addWidget(self.source_toggle, 1, 0)
         header_grid.addWidget(mode_label, 0, 1)
         header_grid.addWidget(self.mode_toggle, 1, 1)
-        header_grid.addWidget(self.layout_label, 2, 0)
-        header_grid.addWidget(self.layout_toggle, 3, 0, 1, 2)
+        header_grid.addWidget(self.layout_label, 0, 2)
+        header_grid.addWidget(self.layout_toggle, 1, 2)
         header_grid.setColumnStretch(0, 0)
-        header_grid.setColumnStretch(1, 1)
+        header_grid.setColumnStretch(1, 0)
+        header_grid.setColumnStretch(2, 1)
 
         hlay.addLayout(title_row)
         hlay.addLayout(header_grid)
@@ -304,12 +399,12 @@ class ForensicsPanel(QWidget):
             w.valueChanged.connect(lambda _v: self._refresh())
 
         ela_card = QFrame()
-        ela_card.setObjectName("card")
+        ela_card.setObjectName("forensicPanel")
         ela_lay = QVBoxLayout(ela_card)
         ela_lay.setContentsMargins(12, 10, 12, 10)
         ela_lay.setSpacing(8)
         ela_title = QLabel("ELA controls")
-        ela_title.setProperty("role", "title")
+        ela_title.setProperty("role", "panel-title")
         ela_hint = QLabel(
             "ELA highlights compression inconsistencies. Indicator only."
         )
@@ -329,12 +424,12 @@ class ForensicsPanel(QWidget):
             w.valueChanged.connect(lambda _v: self._refresh())
 
         noise_card = QFrame()
-        noise_card.setObjectName("card")
+        noise_card.setObjectName("forensicPanel")
         noise_lay = QVBoxLayout(noise_card)
         noise_lay.setContentsMargins(12, 10, 12, 10)
         noise_lay.setSpacing(8)
         noise_title = QLabel("Noise Map controls")
-        noise_title.setProperty("role", "title")
+        noise_title.setProperty("role", "panel-title")
         noise_hint = QLabel(
             "Noise Map highlights fine detail / noise differences. "
             "Indicator only."
@@ -350,12 +445,12 @@ class ForensicsPanel(QWidget):
         # --- view stack: forensic image vs metadata table -------------------
         self.image_view = LabeledView("Forensic view", with_zoom_toolbar=True)
         self.metadata_card = QFrame()
-        self.metadata_card.setObjectName("card")
+        self.metadata_card.setObjectName("forensicPanel")
         md_lay = QVBoxLayout(self.metadata_card)
         md_lay.setContentsMargins(12, 10, 12, 10)
         md_lay.setSpacing(6)
         md_title = QLabel("Metadata")
-        md_title.setProperty("role", "title")
+        md_title.setProperty("role", "panel-title")
         md_hint = QLabel(
             "Metadata may be missing, stripped, or altered. Absence is not proof."
         )
@@ -381,6 +476,7 @@ class ForensicsPanel(QWidget):
         self.forensic_wipe.set_note(self.WIPE_NOTE)
 
         self.view_stack = QStackedWidget()
+        self.view_stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.view_stack.addWidget(self.image_view)         # single forensic view
         self.view_stack.addWidget(self.metadata_card)      # metadata table
         self.view_stack.addWidget(self.side_by_side)       # original | forensic
@@ -400,27 +496,31 @@ class ForensicsPanel(QWidget):
         self.status.setWordWrap(True)
         self.status.setMinimumHeight(20)
 
-        controls_col = QVBoxLayout()
-        controls_col.setSpacing(10)
-        controls_col.addWidget(self.ela_card)
-        controls_col.addWidget(self.noise_card)
-        controls_col.addStretch(1)
-        controls_col.addWidget(self.export_btn)
-
-        body = QHBoxLayout()
-        body.setSpacing(10)
-        body.addLayout(controls_col, 1)
-        body.addWidget(self.view_stack, 3)
+        metadata_controls = QFrame()
+        metadata_controls.setObjectName("forensicPanel")
+        metadata_controls_lay = QVBoxLayout(metadata_controls)
+        metadata_controls_lay.setContentsMargins(12, 10, 12, 10)
+        metadata_controls_lay.setSpacing(8)
+        metadata_controls_title = QLabel("Metadata read")
+        metadata_controls_title.setProperty("role", "panel-title")
+        metadata_controls_hint = QLabel(
+            "EXIF, XMP, and PNG text are read locally. No network lookups are performed."
+        )
+        metadata_controls_hint.setProperty("role", "muted")
+        metadata_controls_hint.setWordWrap(True)
+        metadata_controls_lay.addWidget(metadata_controls_title)
+        metadata_controls_lay.addWidget(metadata_controls_hint)
+        self.metadata_controls_card = metadata_controls
 
         # --- human review notes (in-memory only, session-scoped) -----------
         notes_card = QFrame()
-        notes_card.setObjectName("card")
+        notes_card.setObjectName("forensicPanel")
         notes_lay = QVBoxLayout(notes_card)
         notes_lay.setContentsMargins(12, 10, 12, 10)
         notes_lay.setSpacing(6)
 
         notes_title = QLabel("Human Review Notes")
-        notes_title.setProperty("role", "title")
+        notes_title.setProperty("role", "panel-title")
 
         self.export_report_btn = QPushButton("Export Review Report")
         self.export_report_btn.setProperty("role", "header")
@@ -430,45 +530,28 @@ class ForensicsPanel(QWidget):
         )
         self.export_report_btn.clicked.connect(self._on_export_report)
 
-        notes_title_row = QHBoxLayout()
-        notes_title_row.setContentsMargins(0, 0, 0, 0)
-        notes_title_row.setSpacing(8)
-        notes_title_row.addWidget(notes_title)
-        notes_title_row.addStretch(1)
-        notes_title_row.addWidget(self.export_report_btn)
-
         notes_hint = QLabel(NOTES_HINT)
         notes_hint.setProperty("role", "muted")
         notes_hint.setWordWrap(True)
 
         self.notes_edit = QPlainTextEdit()
+        self.notes_edit.setObjectName("forensicNotes")
         self.notes_edit.setPlaceholderText(NOTES_PLACEHOLDER)
-        self.notes_edit.setFixedHeight(110)
+        self.notes_edit.setFixedHeight(96)
         self.notes_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.notes_edit.setStyleSheet(
-            f"""
-            QPlainTextEdit {{
-                background-color: {theme.BG_INPUT};
-                color: {theme.TEXT_PRIMARY};
-                border: 1px solid {theme.BORDER};
-                border-radius: {theme.RADIUS_SM}px;
-                padding: 6px 8px;
-                selection-background-color: {theme.ACCENT};
-                selection-color: {theme.BG_INPUT};
-            }}
-            QPlainTextEdit:focus {{ border-color: {theme.ACCENT}; }}
-            """
-        )
 
-        notes_lay.addLayout(notes_title_row)
+        # Title and Export button stack vertically: the side-by-side row would
+        # need ~290 px just for label + button text, leaving no slack inside a
+        # 360 px-max sidebar.
+        notes_lay.addWidget(notes_title)
         notes_lay.addWidget(notes_hint)
         notes_lay.addWidget(self.notes_edit)
+        notes_lay.addWidget(self.export_report_btn)
         self.notes_card = notes_card
 
         # --- disclaimer (always visible) ------------------------------------
         disclaimer_card = QFrame()
-        disclaimer_card.setObjectName("card")
-        disclaimer_card.setProperty("role", "summary")
+        disclaimer_card.setObjectName("forensicDisclaimer")
         dl = QHBoxLayout(disclaimer_card)
         dl.setContentsMargins(12, 8, 12, 8)
         dl.setSpacing(8)
@@ -480,14 +563,48 @@ class ForensicsPanel(QWidget):
         dl.addWidget(dot)
         dl.addWidget(msg, 1)
 
+        # --- workspace body --------------------------------------------------
+        sidebar_contents = QWidget()
+        sidebar_contents.setObjectName("forensicSidebarContents")
+        sidebar_lay = QVBoxLayout(sidebar_contents)
+        sidebar_lay.setContentsMargins(0, 0, 0, 0)
+        sidebar_lay.setSpacing(10)
+        sidebar_lay.addWidget(self.ela_card)
+        sidebar_lay.addWidget(self.noise_card)
+        sidebar_lay.addWidget(self.metadata_controls_card)
+        sidebar_lay.addWidget(self.export_btn)
+        sidebar_lay.addWidget(self.notes_card)
+        sidebar_lay.addStretch(1)
+        sidebar_lay.addWidget(self.status)
+
+        sidebar = QScrollArea()
+        sidebar.setObjectName("forensicSidebar")
+        sidebar.setWidgetResizable(True)
+        sidebar.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        sidebar.setWidget(sidebar_contents)
+        sidebar.setMinimumWidth(340)
+        sidebar.setMaximumWidth(400)
+        sidebar.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(12)
+        body.addWidget(sidebar)
+        body.addWidget(self.view_stack, 1)
+
+        workspace = QFrame()
+        workspace.setObjectName("forensicWorkspace")
+        workspace_lay = QVBoxLayout(workspace)
+        workspace_lay.setContentsMargins(14, 14, 14, 14)
+        workspace_lay.setSpacing(12)
+        workspace_lay.addWidget(header)
+        workspace_lay.addWidget(disclaimer_card)
+        workspace_lay.addLayout(body, 1)
+
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(10)
-        root.addWidget(header)
-        root.addWidget(disclaimer_card)
-        root.addLayout(body, 1)
-        root.addWidget(self.notes_card)
-        root.addWidget(self.status)
+        root.setSpacing(0)
+        root.addWidget(workspace, 1)
 
         self._update_mode_visibility()
         self._refresh()
@@ -532,6 +649,7 @@ class ForensicsPanel(QWidget):
         self.ela_card.setVisible(self._mode == self.MODE_ELA)
         self.noise_card.setVisible(self._mode == self.MODE_NOISE)
         is_metadata = self._mode == self.MODE_METADATA
+        self.metadata_controls_card.setVisible(is_metadata)
         # Layout toggle is meaningless for the metadata table.
         self.layout_label.setVisible(not is_metadata)
         self.layout_toggle.setVisible(not is_metadata)
