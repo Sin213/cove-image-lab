@@ -178,12 +178,15 @@ jobs:
       - name: Generate SHA256 sidecars
         working-directory: dist
         run: |
-          Get-ChildItem -File -Include "Cove-Image-Lab-Portable-*.exe","Cove-Image-Lab-Setup-*.exe" -Path . |
-            ForEach-Object {
-              $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
-              "$hash  $($_.Name)" | Out-File -Encoding ASCII -NoNewline "$($_.FullName).sha256"
-              Add-Content -Path "$($_.FullName).sha256" -Value ""
-            }
+          # `Get-ChildItem -Include` only applies with -Recurse or wildcard
+          # paths; pass the wildcards directly as paths instead. Otherwise
+          # the loop silently runs zero times and no .sha256 files exist.
+          $targets = Get-ChildItem -File "Cove-Image-Lab-Portable-*.exe","Cove-Image-Lab-Setup-*.exe"
+          if (-not $targets) { throw "no Windows artifacts found in dist/ — refusing to proceed" }
+          foreach ($f in $targets) {
+            $hash = (Get-FileHash -Algorithm SHA256 $f.FullName).Hash.ToLower()
+            "$hash  $($f.Name)" | Set-Content -Encoding ASCII "$($f.FullName).sha256"
+          }
           Get-ChildItem | Format-Table
 
       - name: Upload artifacts
