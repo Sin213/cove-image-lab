@@ -118,6 +118,7 @@ jobs:
           python -m pip install "pyinstaller>=6" "Pillow>=10"
 
       - name: Generate cove_icon.ico from PNG
+        shell: bash
         run: |
           python - <<'PY'
           from PIL import Image
