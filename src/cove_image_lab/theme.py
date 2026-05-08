@@ -148,6 +148,9 @@ def build_qss() -> str:
         color: {ACCENT};
     }}
 
+    QSlider {{
+        background: transparent;
+    }}
     QSlider::groove:horizontal {{
         height: 4px;
         background: {BORDER};

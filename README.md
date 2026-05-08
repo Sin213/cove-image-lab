@@ -1,5 +1,7 @@
 # cove-image-lab
 
+![Cove Image Lab — Compare tab with two images loaded, threshold slider, and diff comparison readout](docs/cove-image-lab.webp)
+
 **Cove Image Lab** — offline desktop two-image comparison and inspection.
 Four tabs:
 
@@ -74,6 +76,19 @@ python -m pytest -q
   message tells you the actual sizes.
 
 ### Threshold slider (0–100)
+
+![Compare tab — same image loaded as a JPEG (Image A) and as a re-encoded WebP (Image B); threshold = 5 reports only 0.3% changed pixels (104,322 of 33,177,600)](docs/threshold.webp)
+
+The screenshot above shows why the threshold matters in practice. Both
+slots hold visually-identical copies of the same wallpaper — Image A is
+the JPEG, Image B is the same image re-encoded to WebP. Pixel-for-pixel
+they diverge slightly because of lossy recompression, but at
+**threshold = 5** (per-channel tolerance ≈ ±13 / 255) the comparison
+reports only **0.3% changed**: 104,322 pixels out of 33,177,600. Raising
+the threshold further would discard those compression-artifact pixels;
+lowering it back to 0 would flag them all as changed. Use the slider to
+tune how much codec / anti-aliasing noise the comparison should ignore.
+
 - Maps to a per-channel absolute tolerance: `tol = round(threshold * 255 /
   100)`. A pixel is "changed" iff `max(|A − B| per channel) > tol`.
 - Raise the threshold to ignore JPEG / anti-aliasing noise.
@@ -84,6 +99,8 @@ python -m pytest -q
 - The last threshold value is remembered between sessions.
 
 ### Compare / wipe view
+
+![Compare wipe view — Image A on the left of a vertical divider, Image B on the right, with A/B corner badges and a cyan handle in the middle](docs/slider.webp)
 - Shows A under and B over with a draggable vertical handle.
 - Click anywhere on the wipe (in fit mode) to jump the divider; or drag the
   handle directly.
@@ -104,6 +121,8 @@ python -m pytest -q
   to a PNG file you choose. The last-used save directory is remembered.
 
 ## Forensics tab
+
+![Forensics tab — side-by-side ELA view of a sample document with ELA controls, Human Review Notes, and disclaimer banner visible](docs/forensics.webp)
 
 The Forensics tab inspects **one** loaded image (Image A or Image B). All
 views are visual indicators only and do not prove authenticity or
@@ -162,6 +181,8 @@ layout toggle is hidden in Metadata view.
 
 ## Redaction tab
 
+![Redaction tab — preview of a portrait with an opaque black redaction rectangle drawn over the eyes; Undo and Clear controls visible](docs/redaction.webp)
+
 The Redaction tab covers private regions on a chosen source before you
 share it. It is **manual only** — nothing is auto-detected.
 
@@ -182,6 +203,8 @@ share it. It is **manual only** — nothing is auto-detected.
   auto-saved.
 
 ## AI Indicator tab
+
+![AI Indicator tab — three weak-context cards (No camera metadata, No metadata at all, Content credential marker) with a Limitations footer](docs/ai-indicator.webp)
 
 The AI Indicator tab surfaces possible metadata- and provenance-style
 signals from a single loaded source (Image A or Image B) and pairs each
