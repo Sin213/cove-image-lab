@@ -88,7 +88,6 @@ def build_qss() -> str:
         border: 1px dashed {ACCENT};
         background-color: #16201f;
     }}
-
     QPushButton {{
         background-color: {BG_SURFACE_RAISED};
         color: {TEXT_PRIMARY};
@@ -184,6 +183,52 @@ def build_qss() -> str:
         background-color: {BG_SURFACE};
         color: {TEXT_MUTED};
         border-top: 1px solid {BORDER};
+    }}
+
+    QWidget#titleBar {{
+        background-color: {BG_SURFACE};
+        border-bottom: 1px solid {BORDER};
+    }}
+    QWidget#tbCenter {{
+        background: transparent;
+    }}
+    QLabel#tbTitle {{
+        color: {TEXT_PRIMARY};
+        font-size: 14px;
+        font-weight: 500;
+        background: transparent;
+    }}
+    QLabel#tbPill {{
+        color: {ACCENT};
+        font-family: "Geist Mono", "SF Mono", Menlo, monospace;
+        font-size: 10px;
+        font-weight: 600;
+        background: rgba(80, 230, 207, 36);
+        border: 1px solid rgba(80, 230, 207, 90);
+        border-radius: 11px;
+        padding: 0 10px;
+        min-height: 22px;
+        max-height: 22px;
+        letter-spacing: 0.4px;
+    }}
+    QPushButton#tbWinBtn {{
+        background: transparent;
+        border: none;
+        color: {TEXT_MUTED};
+        font-size: 14px;
+        padding: 0;
+        min-width: 28px;
+        min-height: 28px;
+        border-radius: 6px;
+    }}
+    QPushButton#tbWinBtn:hover {{
+        background-color: rgba(255, 255, 255, 16);
+        color: {TEXT_PRIMARY};
+        border: none;
+    }}
+    QPushButton#tbWinBtn[variant="close"]:hover {{
+        background-color: #e5484d;
+        color: #ffffff;
     }}
 
     QToolTip {{
