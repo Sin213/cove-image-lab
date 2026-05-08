@@ -1,10 +1,11 @@
 """MainWindow: drop slots, synced viewer, diff view, threshold slider, export."""
 from __future__ import annotations
 
+from importlib import resources
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QPoint, QSettings, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QRect, QSettings, Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QPixmap
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -23,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import theme
+from . import __version__
 from .compare_engine import (
     CompareResult,
     DimensionMismatchError,
@@ -46,6 +48,189 @@ _IMAGE_FILTERS = (
 
 def _ndarray_to_pixmap(arr: np.ndarray) -> QPixmap:
     return QPixmap.fromImage(ndarray_to_qimage(arr))
+
+
+def _cursor_for_edges(edges: Qt.Edges):
+    """Return the resize cursor matching the given edges, or None."""
+    from PySide6.QtGui import QCursor
+
+    left = bool(edges & Qt.LeftEdge)
+    right = bool(edges & Qt.RightEdge)
+    top = bool(edges & Qt.TopEdge)
+    bottom = bool(edges & Qt.BottomEdge)
+    if (top and left) or (bottom and right):
+        return QCursor(Qt.SizeFDiagCursor)
+    if (top and right) or (bottom and left):
+        return QCursor(Qt.SizeBDiagCursor)
+    if left or right:
+        return QCursor(Qt.SizeHorCursor)
+    if top or bottom:
+        return QCursor(Qt.SizeVerCursor)
+    return None
+
+
+def _icon_path() -> Path | None:
+    """Locate the bundled cove_icon.png. Mirrors `app._icon_path()`.
+
+    Kept local so the titlebar widget does not import from the app module
+    (which imports from us — a circular).
+    """
+    try:
+        ref = resources.files("cove_image_lab").joinpath("assets/cove_icon.png")
+        if ref.is_file():
+            return Path(str(ref))
+    except (ModuleNotFoundError, FileNotFoundError, OSError, TypeError):
+        pass
+    here = Path(__file__).resolve()
+    for parent in (here.parent, *here.parents):
+        candidate = parent / "cove_icon.png"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+class _TitleBar(QWidget):
+    """Custom 44px titlebar matching the design's `.titlebar`.
+
+    Layout (left -> right): [icon][stretch][center: "Cove Image Lab" + accent
+    version pill][stretch][min][max/restore][close]. Drag-to-move via
+    mouse press/move on empty regions; double-click toggles maximize.
+    """
+
+    def __init__(self, parent: QMainWindow) -> None:
+        super().__init__(parent)
+        self._win = parent
+        self.setObjectName("titleBar")
+        self.setFixedHeight(44)
+        self._drag_origin: QPoint | None = None
+
+        # Icon (22×22, top-left)
+        self.icon = QLabel()
+        self.icon.setObjectName("tbLogo")
+        self.icon.setFixedSize(22, 22)
+        self.icon.setAlignment(Qt.AlignCenter)
+        # Make label transparent for mouse so titlebar drag works when clicking it.
+        self.icon.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        ip = _icon_path()
+        if ip is not None:
+            pm = QPixmap(str(ip))
+            if not pm.isNull():
+                self.icon.setPixmap(
+                    pm.scaled(
+                        22, 22, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                    )
+                )
+
+        # Center: title + version pill
+        self.title = QLabel("Cove Image Lab")
+        self.title.setObjectName("tbTitle")
+        self.title.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.pill = QLabel(f"v{__version__}")
+        self.pill.setObjectName("tbPill")
+        self.pill.setAlignment(Qt.AlignCenter)
+        self.pill.setFixedHeight(22)
+        self.pill.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        self.pill.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+
+        center = QHBoxLayout()
+        center.setContentsMargins(0, 0, 0, 0)
+        center.setSpacing(10)
+        center.addWidget(self.title)
+        center.addWidget(self.pill)
+        center_w = QWidget(self)
+        center_w.setLayout(center)
+        center_w.setObjectName("tbCenter")
+        center_w.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.center_w = center_w
+
+        # Window control buttons
+        self.btn_min = QPushButton("–")  # en-dash
+        self.btn_min.setObjectName("tbWinBtn")
+        self.btn_min.setFixedSize(28, 28)
+        self.btn_min.setCursor(Qt.PointingHandCursor)
+        self.btn_min.clicked.connect(self._win.showMinimized)
+        self.btn_min.setFocusPolicy(Qt.NoFocus)
+
+        self.btn_max = QPushButton("□")  # □ for restore/maximize
+        self.btn_max.setObjectName("tbWinBtn")
+        self.btn_max.setFixedSize(28, 28)
+        self.btn_max.setCursor(Qt.PointingHandCursor)
+        self.btn_max.clicked.connect(self._toggle_max)
+        self.btn_max.setFocusPolicy(Qt.NoFocus)
+
+        self.btn_close = QPushButton("✕")  # ✕
+        self.btn_close.setObjectName("tbWinBtn")
+        self.btn_close.setProperty("variant", "close")
+        self.btn_close.setFixedSize(28, 28)
+        self.btn_close.setCursor(Qt.PointingHandCursor)
+        self.btn_close.clicked.connect(self._win.close)
+        self.btn_close.setFocusPolicy(Qt.NoFocus)
+
+        wbtns = QHBoxLayout()
+        wbtns.setContentsMargins(0, 0, 0, 0)
+        wbtns.setSpacing(2)
+        wbtns.addWidget(self.btn_min)
+        wbtns.addWidget(self.btn_max)
+        wbtns.addWidget(self.btn_close)
+
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(14, 0, 8, 0)
+        lay.setSpacing(12)
+        lay.addWidget(self.icon)
+        lay.addStretch(1)
+        lay.addLayout(wbtns)
+
+    def _toggle_max(self) -> None:
+        if self._win.isMaximized():
+            self._win.showNormal()
+            self.btn_max.setText("□")
+        else:
+            self._win.showMaximized()
+            self.btn_max.setText("❐")  # ❐ outlined-square-with-square (restore)
+
+    def resizeEvent(self, event):  # noqa: ANN001, N802
+        super().resizeEvent(event)
+        hint = self.center_w.sizeHint()
+        self.center_w.setGeometry(
+            max(0, (self.width() - hint.width()) // 2),
+            max(0, (self.height() - hint.height()) // 2),
+            hint.width(),
+            hint.height(),
+        )
+        self.center_w.raise_()
+
+    # --- drag-to-move ----------------------------------------------------
+    # Use QWindow.startSystemMove() so the window manager drives the drag.
+    # This is the only path that works on Wayland (where QWidget.move() is a
+    # no-op for top-level windows) and it's also correct on X11 / Win / mac.
+    def mousePressEvent(self, e):  # noqa: ANN001
+        if e.button() == Qt.LeftButton and not self._win.isMaximized():
+            handle = self._win.windowHandle()
+            if handle is not None and handle.startSystemMove():
+                e.accept()
+                return
+            # Fallback (very old Qt or unusual platforms)
+            self._drag_origin = (
+                e.globalPosition().toPoint()
+                - self._win.frameGeometry().topLeft()
+            )
+            e.accept()
+
+    def mouseMoveEvent(self, e):  # noqa: ANN001
+        # Only used as the legacy fallback when startSystemMove failed.
+        if (e.buttons() & Qt.LeftButton) and self._drag_origin is not None:
+            if not self._win.isMaximized():
+                self._win.move(e.globalPosition().toPoint() - self._drag_origin)
+            e.accept()
+
+    def mouseReleaseEvent(self, e):  # noqa: ANN001
+        self._drag_origin = None
+        e.accept()
+
+    def mouseDoubleClickEvent(self, e):  # noqa: ANN001
+        if e.button() == Qt.LeftButton:
+            self._toggle_max()
+            e.accept()
 
 
 class DropSlot(QFrame):
@@ -247,7 +432,17 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Cove Image Lab")
+        # Frameless: replace OS chrome with the design's custom titlebar.
+        self.setWindowFlag(Qt.FramelessWindowHint, True)
+        self.setAttribute(Qt.WA_TranslucentBackground, False)
         self.resize(1480, 880)
+        self.setMinimumSize(1000, 650)
+        self._resize_margin = 6
+        self._resize_edges = Qt.Edges()
+        self._resize_start_pos = QPoint()
+        self._resize_start_geometry = QRect()
+        self._resize_cursor_widget: QWidget | None = None
+        self._resize_cursor_property = "_cove_resize_cursor_owned"
 
         self._settings = QSettings()  # uses app/org name set in app.main()
         self._image_a: np.ndarray | None = None
@@ -402,11 +597,66 @@ class MainWindow(QMainWindow):
         root_lay.addLayout(slots)
         root_lay.addWidget(self.tabs, 1)
 
-        self.setCentralWidget(root)
+        # Custom 44px titlebar replaces OS chrome.
+        self.titlebar = _TitleBar(self)
+        # Wrap titlebar + content in a single central widget.
+        outer = QWidget()
+        outer_lay = QVBoxLayout(outer)
+        outer_lay.setContentsMargins(0, 0, 0, 0)
+        outer_lay.setSpacing(0)
+        outer_lay.addWidget(self.titlebar)
+        outer_lay.addWidget(root, 1)
+        self.setCentralWidget(outer)
+
         self.setStatusBar(QStatusBar(self))
+        self.statusBar().setSizeGripEnabled(False)
         self.statusBar().showMessage("Ready")
 
         self._restore_settings()
+
+        # The frameless window covers itself with the central widget and its
+        # descendants, so the QMainWindow mouse events never fire. Install an
+        # event filter on every descendant that reaches the window border to
+        # detect proximity to the edges from anywhere in the UI.
+        self._install_resize_filter(self.centralWidget())
+        self._install_resize_filter(self.statusBar())
+
+    # --- frameless edge-resize event filter -------------------------------
+    def _install_resize_filter(self, root: QWidget | None) -> None:
+        if root is None:
+            return
+        root.installEventFilter(self)
+        root.setMouseTracking(True)
+        for child in root.findChildren(QWidget):
+            child.installEventFilter(self)
+            child.setMouseTracking(True)
+
+    def eventFilter(self, obj, event) -> bool:  # noqa: ANN001, N802
+        et = event.type()
+        if et in (QEvent.MouseMove, QEvent.MouseButtonPress, QEvent.MouseButtonRelease):
+            try:
+                gp = event.globalPosition().toPoint()
+            except AttributeError:
+                gp = event.globalPos()
+            pos = self.mapFromGlobal(gp)
+            if et == QEvent.MouseMove and self._resize_edges:
+                self._apply_resize_fallback(gp)
+                return True
+            if et == QEvent.MouseMove and event.buttons() == Qt.NoButton:
+                edges = self._edges_at(pos)
+                self._set_resize_cursor(obj, edges)
+            elif et == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                edges = self._edges_at(pos)
+                if edges:
+                    handle = self.windowHandle()
+                    if handle is not None and handle.startSystemResize(edges):
+                        return True
+                    self._begin_resize_fallback(edges, gp)
+                    return True
+            elif et == QEvent.MouseButtonRelease and self._resize_edges:
+                self._end_resize_fallback()
+                return True
+        return False
 
     # --- settings ---------------------------------------------------------
     def _restore_settings(self) -> None:
@@ -431,6 +681,140 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:  # noqa: N802, ANN001
         self._settings.setValue("view/threshold", int(self.slider.value()))
         super().closeEvent(event)
+
+    # ------------------------------------------------------------------
+    # Frameless edge-resize: the OS chrome is gone, so we detect mouse
+    # proximity to the window edges and call the platform's
+    # startSystemResize() to keep native resize semantics (snapping,
+    # cursors) working.
+    # ------------------------------------------------------------------
+    def _edges_at(self, pos: QPoint) -> Qt.Edges:
+        m = self._resize_margin
+        if self.isMaximized() or self.isFullScreen():
+            return Qt.Edges()
+        rect = self.rect()
+        edges = Qt.Edges()
+        if pos.x() <= m:
+            edges |= Qt.LeftEdge
+        if pos.x() >= rect.width() - m:
+            edges |= Qt.RightEdge
+        if pos.y() <= m:
+            edges |= Qt.TopEdge
+        if pos.y() >= rect.height() - m:
+            edges |= Qt.BottomEdge
+        return edges
+
+    def _set_resize_cursor(self, obj, edges: Qt.Edges) -> None:  # noqa: ANN001
+        widget = obj if isinstance(obj, QWidget) else None
+        cursor = _cursor_for_edges(edges)
+
+        if (
+            self._resize_cursor_widget is not None
+            and self._resize_cursor_widget is not widget
+        ):
+            if self._resize_cursor_widget.property(self._resize_cursor_property):
+                self._resize_cursor_widget.unsetCursor()
+                self._resize_cursor_widget.setProperty(
+                    self._resize_cursor_property, False
+                )
+            self._resize_cursor_widget = None
+
+        if widget is None:
+            return
+
+        owns_widget_cursor = bool(widget.property(self._resize_cursor_property))
+        has_widget_cursor = widget.testAttribute(Qt.WA_SetCursor)
+
+        if cursor is not None:
+            if owns_widget_cursor or not has_widget_cursor:
+                widget.setCursor(cursor)
+                widget.setProperty(self._resize_cursor_property, True)
+                self._resize_cursor_widget = widget
+            return
+
+        if owns_widget_cursor:
+            widget.unsetCursor()
+            widget.setProperty(self._resize_cursor_property, False)
+            self._resize_cursor_widget = None
+
+    def _begin_resize_fallback(self, edges: Qt.Edges, global_pos: QPoint) -> None:
+        self._resize_edges = edges
+        self._resize_start_pos = global_pos
+        self._resize_start_geometry = self.geometry()
+
+    def _end_resize_fallback(self) -> None:
+        self._resize_edges = Qt.Edges()
+        if (
+            self._resize_cursor_widget is not None
+            and self._resize_cursor_widget.property(self._resize_cursor_property)
+        ):
+            self._resize_cursor_widget.unsetCursor()
+            self._resize_cursor_widget.setProperty(self._resize_cursor_property, False)
+            self._resize_cursor_widget = None
+
+    def _apply_resize_fallback(self, global_pos: QPoint) -> None:
+        if not self._resize_edges:
+            return
+        delta = global_pos - self._resize_start_pos
+        start = self._resize_start_geometry
+        min_w = self.minimumWidth()
+        min_h = self.minimumHeight()
+
+        left = start.left()
+        top = start.top()
+        width = start.width()
+        height = start.height()
+
+        if self._resize_edges & Qt.LeftEdge:
+            proposed_left = start.left() + delta.x()
+            max_left = start.right() - min_w + 1
+            left = min(proposed_left, max_left)
+            width = start.right() - left + 1
+        if self._resize_edges & Qt.RightEdge:
+            width = max(min_w, start.width() + delta.x())
+        if self._resize_edges & Qt.TopEdge:
+            proposed_top = start.top() + delta.y()
+            max_top = start.bottom() - min_h + 1
+            top = min(proposed_top, max_top)
+            height = start.bottom() - top + 1
+        if self._resize_edges & Qt.BottomEdge:
+            height = max(min_h, start.height() + delta.y())
+
+        self.setGeometry(left, top, width, height)
+
+    def mouseMoveEvent(self, event):  # noqa: ANN001, N802
+        if self._resize_edges:
+            self._apply_resize_fallback(event.globalPosition().toPoint())
+            event.accept()
+            return
+        if event.buttons() == Qt.NoButton:
+            edges = self._edges_at(event.position().toPoint())
+            cursor = _cursor_for_edges(edges)
+            if cursor is not None:
+                self.setCursor(cursor)
+            else:
+                self.unsetCursor()
+        super().mouseMoveEvent(event)
+
+    def mousePressEvent(self, event):  # noqa: ANN001, N802
+        if event.button() == Qt.LeftButton:
+            edges = self._edges_at(event.position().toPoint())
+            handle = self.windowHandle()
+            if edges:
+                if handle is not None and handle.startSystemResize(edges):
+                    event.accept()
+                    return
+                self._begin_resize_fallback(edges, event.globalPosition().toPoint())
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):  # noqa: ANN001, N802
+        if self._resize_edges:
+            self._end_resize_fallback()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     # --- loading / orchestration ------------------------------------------
     def _load_into(self, slot: str, path_str: str) -> None:
