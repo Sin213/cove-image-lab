@@ -1,0 +1,246 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v1.0.0). Required for manual runs."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  # ----------------------------------------------------------------------
+  # Linux: AppImage + .deb
+  # ----------------------------------------------------------------------
+  linux:
+    name: Linux artifacts (AppImage + .deb)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install system deps for Qt + AppImage
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-shape0 libxcb-sync1 libxcb-xfixes0 \
+            libxcb-xinerama0 libxkbcommon-x11-0 libegl1 libgl1 libfontconfig1 \
+            libxrender1 libxcb-cursor0 \
+            file desktop-file-utils
+
+      - name: Install project + PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install "pyinstaller>=6"
+
+      - name: Build PyInstaller --onedir bundle
+        run: |
+          ./packaging/build-linux.sh
+
+      - name: Fetch appimagetool
+        run: |
+          curl -L -o appimagetool \
+            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          # Extract instead of running (FUSE is unavailable on GitHub runners)
+          ./appimagetool --appimage-extract >/dev/null
+          mv squashfs-root appimagetool-extracted
+          echo "APPIMAGETOOL=$PWD/appimagetool-extracted/AppRun" >> "$GITHUB_ENV"
+
+      - name: Build AppImage
+        env:
+          OUTPUT_NAME: Cove-Image-Lab-x86_64.AppImage
+        run: |
+          ./packaging/build-appimage.sh
+
+      - name: Build .deb
+        run: |
+          ./packaging/build-deb.sh
+
+      - name: Generate SHA256 sidecars
+        working-directory: dist
+        run: |
+          for f in *.AppImage *.deb; do
+            [ -f "$f" ] || continue
+            sha256sum "$f" > "$f.sha256"
+          done
+          ls -la
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: |
+            dist/*.AppImage
+            dist/*.AppImage.sha256
+            dist/*.deb
+            dist/*.deb.sha256
+          if-no-files-found: error
+
+  # ----------------------------------------------------------------------
+  # Windows: Portable.exe + Setup.exe
+  # ----------------------------------------------------------------------
+  windows:
+    name: Windows artifacts (Portable.exe + Setup.exe)
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install project + PyInstaller + Pillow
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install "pyinstaller>=6" "Pillow>=10"
+
+      - name: Generate cove_icon.ico from PNG
+        run: |
+          python - <<'PY'
+          from PIL import Image
+          src = "src/cove_image_lab/assets/cove_icon.png"
+          dst = "src/cove_image_lab/assets/cove_icon.ico"
+          img = Image.open(src).convert("RGBA")
+          img.save(dst, format="ICO",
+                   sizes=[(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)])
+          print("wrote", dst)
+          PY
+
+      - name: Resolve version from pyproject.toml
+        id: version
+        run: |
+          $line = Select-String -Path pyproject.toml -Pattern '^version\s*=' | Select-Object -First 1
+          $v = ($line.Line -split '"')[1]
+          if (-not $v) { Write-Error "could not parse version"; exit 1 }
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "version=$v"
+
+      - name: Build PyInstaller --onedir bundle (input to Inno Setup)
+        run: |
+          python -m PyInstaller --noconfirm `
+            --workpath build --distpath dist `
+            packaging/cove-image-lab.spec
+
+      - name: Build Portable.exe (--onefile)
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python -m PyInstaller --noconfirm `
+            --onefile --windowed `
+            --name "Cove-Image-Lab-Portable" `
+            --icon "src/cove_image_lab/assets/cove_icon.ico" `
+            --add-data "src/cove_image_lab/assets/cove_icon.png;cove_image_lab/assets" `
+            --paths src `
+            --workpath build/portable --distpath dist `
+            packaging/launcher.py
+          # Append version to filename for clarity
+          Move-Item -Force "dist/Cove-Image-Lab-Portable.exe" "dist/Cove-Image-Lab-Portable-$env:VERSION.exe"
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup --no-progress -y
+
+      - name: Build Setup.exe with Inno Setup
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            $iscc = "C:\Program Files\Inno Setup 6\ISCC.exe"
+          }
+          & $iscc /DAppVersion=$env:VERSION packaging/cove-image-lab.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit $LASTEXITCODE" }
+
+      - name: Generate SHA256 sidecars
+        working-directory: dist
+        run: |
+          Get-ChildItem -File -Include "Cove-Image-Lab-Portable-*.exe","Cove-Image-Lab-Setup-*.exe" -Path . |
+            ForEach-Object {
+              $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
+              "$hash  $($_.Name)" | Out-File -Encoding ASCII -NoNewline "$($_.FullName).sha256"
+              Add-Content -Path "$($_.FullName).sha256" -Value ""
+            }
+          Get-ChildItem | Format-Table
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            dist/Cove-Image-Lab-Portable-*.exe
+            dist/Cove-Image-Lab-Portable-*.exe.sha256
+            dist/Cove-Image-Lab-Setup-*.exe
+            dist/Cove-Image-Lab-Setup-*.exe.sha256
+          if-no-files-found: error
+
+  # ----------------------------------------------------------------------
+  # Release: gather all artifacts and attach to a GH release
+  # ----------------------------------------------------------------------
+  release:
+    name: Publish GitHub Release
+    needs: [linux, windows]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "ref=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-artifacts
+          path: artifacts
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-artifacts
+          path: artifacts
+
+      - name: List
+        run: ls -la artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.ref }}
+          name: ${{ steps.tag.outputs.ref }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            artifacts/Cove-Image-Lab-x86_64.AppImage
+            artifacts/Cove-Image-Lab-x86_64.AppImage.sha256
+            artifacts/cove-image-lab_*_amd64.deb
+            artifacts/cove-image-lab_*_amd64.deb.sha256
+            artifacts/Cove-Image-Lab-Portable-*.exe
+            artifacts/Cove-Image-Lab-Portable-*.exe.sha256
+            artifacts/Cove-Image-Lab-Setup-*.exe
+            artifacts/Cove-Image-Lab-Setup-*.exe.sha256
