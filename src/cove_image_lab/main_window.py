@@ -961,7 +961,8 @@ def _tab_qss() -> str:
     QTabBar::tab {{
         background: {theme.BG_SURFACE};
         color: {theme.TEXT_MUTED};
-        padding: 8px 18px;
+        min-height: 30px;
+        padding: 4px 18px;
         margin-right: 4px;
         border: 1px solid {theme.BORDER};
         border-bottom: none;
