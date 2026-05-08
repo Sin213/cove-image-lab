@@ -30,6 +30,9 @@ exports/
 output/
 *.log
 
+# Generated build assets
+src/cove_image_lab/assets/cove_icon.ico
+
 # Personal MDs
 RELEASES.md
 WORKFLOW.md

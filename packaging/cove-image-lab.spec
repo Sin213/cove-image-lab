@@ -14,14 +14,23 @@ import os
 PROJECT_ROOT = os.path.abspath(os.path.join(SPECPATH, os.pardir))
 SRC = os.path.join(PROJECT_ROOT, "src")
 LAUNCHER = os.path.join(SPECPATH, "launcher.py")
-ICON = os.path.join(SRC, "cove_image_lab", "assets", "cove_icon.png")
+# Prefer a Windows .ico if the build pipeline generated one (see the
+# release workflow); otherwise fall back to the PNG that ships in the
+# source tree. PyInstaller accepts both, but Windows really wants .ico
+# for the embedded executable icon.
+_ICON_PNG = os.path.join(SRC, "cove_image_lab", "assets", "cove_icon.png")
+_ICON_ICO = os.path.join(SRC, "cove_image_lab", "assets", "cove_icon.ico")
+ICON = _ICON_ICO if os.path.exists(_ICON_ICO) else _ICON_PNG
+# The bundled-asset path stays the PNG so the running app keeps using it
+# (cove_image_lab.app._icon_path() loads the PNG resource at runtime).
+BUNDLED_ICON = _ICON_PNG
 
 
 a = Analysis(
     [LAUNCHER],
     pathex=[SRC],
     binaries=[],
-    datas=[(ICON, "cove_image_lab/assets")],
+    datas=[(BUNDLED_ICON, "cove_image_lab/assets")],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
