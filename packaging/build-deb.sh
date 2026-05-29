@@ -87,7 +87,7 @@ Priority: optional
 Architecture: amd64
 Depends: libc6, libxcb1, libgl1, libfontconfig1, libxkbcommon0
 Installed-Size: $INSTALLED_SIZE
-Maintainer: Sin213 <cjlopez213@gmail.com>
+Maintainer: Sin213
 Homepage: https://github.com/Sin213/cove-image-lab
 Description: Offline desktop two-image comparison and inspection
  Compare, redact, and inspect images locally with no network use.
