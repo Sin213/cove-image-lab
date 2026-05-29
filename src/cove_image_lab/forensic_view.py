@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QObject, QThread, Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -40,6 +40,59 @@ from .help_dialog import open_forensics_help
 from .image_view import LabeledView, SyncedImageView, ndarray_to_qimage
 from .metadata_reader import MetadataReadError, read_metadata
 from .wipe_view import CompareWipeView
+
+
+class _ForensicWorker(QObject):
+    """Runs ELA or noise-map computation on a background QThread.
+
+    Emits ``finished(result_array, label)`` on success or
+    ``error(message)`` on failure.  Both signals are connected in the
+    main thread so Qt cross-thread queued connections guarantee that
+    the slots run on the GUI thread.
+    """
+
+    finished = Signal(object, str)   # (np.ndarray, label_text)
+    error = Signal(str)              # human-readable error message
+
+    def __init__(
+        self,
+        mode: str,
+        arr: np.ndarray,
+        params: dict,
+    ) -> None:
+        super().__init__()
+        self._mode = mode
+        self._arr = arr
+        self._params = params
+
+    def run(self) -> None:
+        try:
+            if self._mode == "ela":
+                view = error_level_analysis(
+                    self._arr,
+                    quality=self._params["quality"],
+                    scale=self._params["scale"],
+                    brightness=self._params["brightness"],
+                )
+                label = (
+                    f"ELA — quality {self._params['quality']}, "
+                    f"scale {self._params['scale']}×, "
+                    f"brightness {self._params['brightness']:+d}"
+                )
+            else:
+                view = noise_map(
+                    self._arr,
+                    scale=self._params["scale"],
+                    brightness=self._params["brightness"],
+                )
+                label = (
+                    f"Noise Map — scale {self._params['scale']}×, "
+                    f"brightness {self._params['brightness']:+d}"
+                )
+        except ForensicError as e:
+            self.error.emit(str(e))
+            return
+        self.finished.emit(view, label)
 
 
 DISCLAIMER = (
@@ -323,6 +376,8 @@ class ForensicsPanel(QWidget):
         self._mode = self.MODE_ELA
         self._layout = self.LAYOUT_SINGLE
         self._last_save_dir = ""
+        self._worker: _ForensicWorker | None = None
+        self._thread: QThread | None = None
 
         self.setStyleSheet(_forensics_qss())
 
@@ -676,6 +731,7 @@ class ForensicsPanel(QWidget):
     def _refresh_forensic_image(self) -> None:
         arr = self._current_array()
         if arr is None:
+            self._cancel_worker()
             self._last_view = None
             self.image_view.set_pixmap(None)
             self.image_view.set_toolbar_enabled(False)
@@ -686,47 +742,70 @@ class ForensicsPanel(QWidget):
                 f"Load Image {'A' if self._source == 'a' else 'B'} on the Compare tab to begin."
             )
             return
-        try:
-            if self._mode == self.MODE_ELA:
-                view = error_level_analysis(
-                    arr,
-                    quality=self.ela_quality.value(),
-                    scale=float(self.ela_scale.value()),
-                    brightness=float(self.ela_brightness.value()),
-                )
-                label = (
-                    f"ELA — quality {self.ela_quality.value()}, "
-                    f"scale {self.ela_scale.value()}×, "
-                    f"brightness {self.ela_brightness.value():+d}"
-                )
-            else:
-                view = noise_map(
-                    arr,
-                    scale=float(self.noise_scale.value()),
-                    brightness=float(self.noise_brightness.value()),
-                )
-                label = (
-                    f"Noise Map — scale {self.noise_scale.value()}×, "
-                    f"brightness {self.noise_brightness.value():+d}"
-                )
-        except ForensicError as e:
-            self._last_view = None
-            self.image_view.set_pixmap(None)
-            self.image_view.set_toolbar_enabled(False)
-            self.side_by_side.set_images(None, None)
-            self.forensic_wipe.set_images(None, None)
-            self.export_btn.setEnabled(False)
-            self.status.setText(f"Could not analyze image: {e}")
-            return
+
+        # Cancel any in-flight worker before launching a new one.
+        self._cancel_worker()
+        self.status.setText("Analyzing…")
+        self.export_btn.setEnabled(False)
+
+        if self._mode == self.MODE_ELA:
+            params = {
+                "quality": self.ela_quality.value(),
+                "scale": float(self.ela_scale.value()),
+                "brightness": float(self.ela_brightness.value()),
+            }
+        else:
+            params = {
+                "scale": float(self.noise_scale.value()),
+                "brightness": float(self.noise_brightness.value()),
+            }
+
+        worker = _ForensicWorker(self._mode, arr, params)
+        thread = QThread(self)
+        worker.moveToThread(thread)
+
+        thread.started.connect(worker.run)
+        worker.finished.connect(self._on_forensic_done)
+        worker.error.connect(self._on_forensic_error)
+        # Clean up thread and worker objects after the thread finishes.
+        worker.finished.connect(thread.quit)
+        worker.error.connect(thread.quit)
+        thread.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+
+        self._worker = worker
+        self._thread = thread
+        thread.start()
+
+    def _cancel_worker(self) -> None:
+        """Request stop of any running background worker/thread."""
+        if self._thread is not None and self._thread.isRunning():
+            self._thread.quit()
+            self._thread.wait()
+        self._worker = None
+        self._thread = None
+
+    def _on_forensic_done(self, view: np.ndarray, label: str) -> None:
         self._last_view = view
+        arr = self._current_array()
         forensic_pix = _ndarray_to_pixmap(view)
-        original_pix = _ndarray_to_pixmap(arr)
         self.image_view.set_pixmap(forensic_pix)
         self.image_view.set_toolbar_enabled(True)
-        self.side_by_side.set_images(original_pix, forensic_pix)
-        self.forensic_wipe.set_images(original_pix, forensic_pix)
+        if arr is not None:
+            original_pix = _ndarray_to_pixmap(arr)
+            self.side_by_side.set_images(original_pix, forensic_pix)
+            self.forensic_wipe.set_images(original_pix, forensic_pix)
         self.export_btn.setEnabled(True)
         self.status.setText(label + " — indicator only")
+
+    def _on_forensic_error(self, message: str) -> None:
+        self._last_view = None
+        self.image_view.set_pixmap(None)
+        self.image_view.set_toolbar_enabled(False)
+        self.side_by_side.set_images(None, None)
+        self.forensic_wipe.set_images(None, None)
+        self.export_btn.setEnabled(False)
+        self.status.setText(f"Could not analyze image: {message}")
 
     def _refresh_metadata(self) -> None:
         path = self._current_path()

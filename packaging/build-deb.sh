@@ -9,7 +9,7 @@
 #   ./packaging/build-deb.sh
 #
 # Environment overrides:
-#   VERSION=1.0.0          # defaults to pyproject.toml version
+#   VERSION=1.1.0          # defaults to pyproject.toml version
 #   OUTPUT_DIR=/somewhere/dist
 #
 # Output:

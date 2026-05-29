@@ -10,12 +10,15 @@ The only error raised is :class:`MetadataReadError`, which is reserved for
 """
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from PIL import ExifTags, Image, UnidentifiedImageError
+
+_log = logging.getLogger(__name__)
 
 
 class MetadataReadError(ValueError):
@@ -111,7 +114,8 @@ def _coerce(value: Any) -> Any:
     if isinstance(value, bytes):
         try:
             return value.decode("utf-8", errors="replace").rstrip("\x00").strip()
-        except Exception:
+        except (UnicodeDecodeError, TypeError, AttributeError) as exc:
+            _log.warning("_coerce: could not decode bytes value: %s", exc)
             return repr(value)
     if isinstance(value, str):
         return value.rstrip("\x00").strip()

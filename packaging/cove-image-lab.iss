@@ -14,7 +14,7 @@
 #define AppId "{{5C8E4FB2-4A7B-4C9E-B3F1-A0B1C2D3E4F5}}"
 
 #ifndef AppVersion
-  #define AppVersion "1.0.0"
+  #define AppVersion "1.1.0"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\dist\cove-image-lab"

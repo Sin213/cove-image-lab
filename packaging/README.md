@@ -200,10 +200,10 @@ works on Windows once `cove_icon.ico` exists), then run ISCC:
 
 ```powershell
 python -m PyInstaller --noconfirm packaging/cove-image-lab.spec
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=1.0.0 packaging\cove-image-lab.iss
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=1.1.0 packaging\cove-image-lab.iss
 ```
 
-Output: `dist/Cove-Image-Lab-Setup-1.0.0.exe`.
+Output: `dist/Cove-Image-Lab-Setup-1.1.0.exe`.
 
 ## CI release flow
 

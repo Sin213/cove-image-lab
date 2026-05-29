@@ -70,10 +70,13 @@ def _cursor_for_edges(edges: Qt.Edges):
 
 
 def _icon_path() -> Path | None:
-    """Locate the bundled cove_icon.png. Mirrors `app._icon_path()`.
+    """Locate cove_icon.png for the running interpreter.
 
-    Kept local so the titlebar widget does not import from the app module
-    (which imports from us — a circular).
+    Canonical implementation; ``app`` imports this to avoid duplication.
+    Prefers the icon packaged with the installed wheel/sdist via
+    ``importlib.resources`` (``cove_image_lab/assets/cove_icon.png``).
+    Falls back to walking up to a repo-root ``cove_icon.png`` for editable
+    development trees. No sibling repo is consulted.
     """
     try:
         ref = resources.files("cove_image_lab").joinpath("assets/cove_icon.png")
