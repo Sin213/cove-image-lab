@@ -1,6 +1,7 @@
 """MainWindow: drop slots, synced viewer, diff view, threshold slider, export."""
 from __future__ import annotations
 
+import os
 from importlib import resources
 from pathlib import Path
 
@@ -25,6 +26,7 @@ from PySide6.QtWidgets import (
 
 from . import theme
 from . import __version__
+from .portable import is_portable, portable_data_dir
 from .compare_engine import (
     CompareResult,
     DimensionMismatchError,
@@ -447,7 +449,11 @@ class MainWindow(QMainWindow):
         self._resize_cursor_widget: QWidget | None = None
         self._resize_cursor_property = "_cove_resize_cursor_owned"
 
-        self._settings = QSettings()  # uses app/org name set in app.main()
+        if is_portable():
+            _portable_dir = portable_data_dir("cove-image-lab")
+            self._settings = QSettings(os.path.join(_portable_dir, "settings.ini"), QSettings.IniFormat)
+        else:
+            self._settings = QSettings()
         self._image_a: np.ndarray | None = None
         self._image_b: np.ndarray | None = None
         self._path_a: Path | None = None
