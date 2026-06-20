@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QPushButton,
+    QSizeGrip,
     QSizePolicy,
     QSlider,
     QStatusBar,
@@ -618,7 +619,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(outer)
 
         self.setStatusBar(QStatusBar(self))
-        self.statusBar().setSizeGripEnabled(False)
+        self.statusBar().setSizeGripEnabled(True)
         self.statusBar().showMessage("Ready")
 
         self._restore_settings()

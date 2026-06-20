@@ -17,6 +17,7 @@ BG_SURFACE_RAISED = "#1c2125"
 BG_INPUT = "#0b0e10"
 
 BORDER = "#262c31"
+WINDOW_EDGE = "rgba(255, 255, 255, 0.18)"  # visible outer border on frameless QMainWindow
 BORDER_STRONG = "#33393f"
 
 TEXT_PRIMARY = "#e6ecef"
@@ -54,6 +55,9 @@ def build_qss() -> str:
     }}
     QMainWindow, QDialog {{
         background-color: {BG_BASE};
+    }}
+    QMainWindow {{
+        border: 4px solid {WINDOW_EDGE};
     }}
     QLabel {{
         background: transparent;
