@@ -6,7 +6,7 @@ from importlib import resources
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QEvent, QPoint, QRect, QSettings, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QRect, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QPixmap
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import theme
+from . import updater
 from . import __version__
 from .portable import is_portable, portable_data_dir
 from .compare_engine import (
@@ -630,6 +631,15 @@ class MainWindow(QMainWindow):
         # detect proximity to the edges from anywhere in the UI.
         self._install_resize_filter(self.centralWidget())
         self._install_resize_filter(self.statusBar())
+
+        self._updater = updater.UpdateController(
+            parent=self,
+            current_version=__version__,
+            repo="Sin213/cove-image-lab",
+            app_display_name="Cove Image Lab",
+            cache_subdir="cove-image-lab",
+        )
+        QTimer.singleShot(4000, self._updater.check)
 
     # --- frameless edge-resize event filter -------------------------------
     def _install_resize_filter(self, root: QWidget | None) -> None:
