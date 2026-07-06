@@ -444,7 +444,7 @@ class MainWindow(QMainWindow):
         self.setAttribute(Qt.WA_TranslucentBackground, False)
         self.resize(1480, 880)
         self.setMinimumSize(1000, 650)
-        self._resize_margin = 6
+        self._resize_margin = 8
         self._resize_edges = Qt.Edges()
         self._resize_start_pos = QPoint()
         self._resize_start_geometry = QRect()
