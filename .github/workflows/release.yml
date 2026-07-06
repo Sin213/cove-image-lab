@@ -63,9 +63,17 @@ jobs:
           mv squashfs-root appimagetool-extracted
           echo "APPIMAGETOOL=$PWD/appimagetool-extracted/AppRun" >> "$GITHUB_ENV"
 
+      - name: Resolve version from pyproject.toml
+        id: version
+        run: |
+          v=$(grep -m1 '^version' pyproject.toml | sed -E 's/version\s*=\s*"([^"]+)"/\1/')
+          if [ -z "$v" ]; then echo "could not parse version" >&2; exit 1; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "version=$v"
+
       - name: Build AppImage
         env:
-          OUTPUT_NAME: Cove-Image-Lab-x86_64.AppImage
+          OUTPUT_NAME: Cove-Image-Lab-${{ steps.version.outputs.version }}-x86_64.AppImage
         run: |
           ./packaging/build-appimage.sh
 
@@ -240,8 +248,8 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
-            artifacts/Cove-Image-Lab-x86_64.AppImage
-            artifacts/Cove-Image-Lab-x86_64.AppImage.sha256
+            artifacts/Cove-Image-Lab-*-x86_64.AppImage
+            artifacts/Cove-Image-Lab-*-x86_64.AppImage.sha256
             artifacts/cove-image-lab_*_amd64.deb
             artifacts/cove-image-lab_*_amd64.deb.sha256
             artifacts/Cove-Image-Lab-Portable-*.exe
