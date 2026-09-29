@@ -23,21 +23,6 @@ Four tabs:
 Zero network calls, no AI APIs, no telemetry, no accounts. Everything is
 local.
 
-## Demo
-
-[![Watch the Cove Image Lab demo](docs/cove-image-lab.webp)](docs/CIL.mp4)
-
-**[Watch the full Cove Image Lab demo →](docs/CIL.mp4)**
-
-## Install / run
-
-```bash
-pip install -e .[dev]
-python -m cove_image_lab
-# or, after install:
-cove-image-lab
-```
-
 Requires Python 3.11+. Depends on PySide6, Pillow, and NumPy.
 
 ## Test
