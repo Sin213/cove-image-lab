@@ -23,6 +23,8 @@ Four tabs:
 Zero network calls, no AI APIs, no telemetry, no accounts. Everything is
 local.
 
+https://github.com/user-attachments/assets/fd6486ac-5f24-4672-becd-6a50eb443b70
+
 Requires Python 3.11+. Depends on PySide6, Pillow, and NumPy.
 
 ## Test
