@@ -1,6 +1,5 @@
-# cove-image-lab
+# Cove Image Lab
 
-![Cove Image Lab — Compare tab with two images loaded, threshold slider, and diff comparison readout](docs/cove-image-lab.webp)
 
 **Cove Image Lab** — offline desktop two-image comparison and inspection.
 Four tabs:
@@ -268,53 +267,6 @@ For a self-contained one-folder bundle (Python + Qt + assets):
 See [`packaging/README.md`](packaging/README.md) for spec details, the
 optional `.desktop` launcher template, and environment overrides.
 Windows and macOS packaging are not yet scaffolded.
-
-## Project layout
-
-```
-src/cove_image_lab/
-  __init__.py            # version
-  __main__.py            # python -m entry point
-  app.py                 # QApplication boot, theme, icon
-  main_window.py         # QMainWindow, drop slots, tabs, slider, export
-  image_loader.py        # PURE: path -> RGBA ndarray
-  image_view.py          # Synced QGraphicsView pair (zoom/pan)
-  wipe_view.py           # Compare/wipe widget + fullscreen dialog
-  compare_engine.py      # PURE: (A, B, threshold) -> (mask, heatmap, stats)
-  diff_exporter.py       # PURE: heatmap ndarray -> PNG file
-  forensic_engine.py     # PURE: ELA / Noise Map computations
-  forensic_view.py       # Forensics tab UI: views, layout, notes, exports
-  metadata_reader.py     # PURE: image file -> structured metadata dict
-  redaction_view.py      # Redaction tab UI + redacted-PNG render/export
-  ai_indicator_engine.py # PURE: Metadata -> list[Indicator] (no ML, no net)
-  ai_indicator_view.py   # AI Indicator tab UI: source toggle, cards, limits
-  help_dialog.py         # In-app "How to use" dialogs (data + widget)
-  theme.py               # Cove colors, spacing, QSS
-  assets/
-    cove_icon.png        # Window/app icon (shipped as package data)
-
-tests/
-  test_ai_indicator_engine.py
-  test_ai_indicator_view.py
-  test_compare_engine.py
-  test_diff_exporter.py
-  test_forensic_engine.py
-  test_forensics_export.py
-  test_forensics_notes.py
-  test_forensics_review_report.py
-  test_help_content.py
-  test_image_loader.py
-  test_metadata_reader.py
-  test_redaction_panel.py
-  test_redaction_render.py
-
-packaging/
-  build-linux.sh           # one-folder Linux build wrapper
-  cove-image-lab.spec      # PyInstaller spec (uses repo-relative paths)
-  launcher.py              # absolute-import entry for the frozen binary
-  cove-image-lab.desktop   # .desktop launcher template
-  README.md                # build instructions + output layout
-```
 
 The comparison engine, forensic engine, image loader, metadata reader, and
 diff exporter have no Qt imports. UI imports the engines; the engines
